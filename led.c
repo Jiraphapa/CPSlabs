@@ -40,7 +40,7 @@ void led_set(int port,int value)
             case 1:
                 LED1_PORT = value;
                 Nop();
-            case2:
+            case 2:
                 LED2_PORT = value;
                 Nop();
             case 3:
