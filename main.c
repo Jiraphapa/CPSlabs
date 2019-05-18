@@ -197,9 +197,9 @@ void initTimer2(){
         // Notes: (period * prescale) / clock freq. = actual time in second
         // (100 * 256) / 12800000 = 0.002
         PR2 = 100; // Load the period value
-        IPC1bits.T2IP = 0x02; // Set Timer1 Interrupt Priority Level
-        CLEARBIT(IFS0bits.T2IF); // Clear Timer1 Interrupt Flag
-        SETBIT(IEC0bits.T2IE); // Enable Timer1 interrupt
+        IPC1bits.T2IP = 0x02; // Set Timer2 Interrupt Priority Level
+        CLEARBIT(IFS0bits.T2IF); // Clear Timer2 Interrupt Flag
+        SETBIT(IEC0bits.T2IE); // Enable Timer2 interrupt
         SETBIT(T2CONbits.TON); // Start Timer
         
 }
@@ -217,9 +217,9 @@ void initTimer3(){
         // Notes: (period * prescale) / clock freq. = actual time in second
         // (250 * 256) / 12800000 = 0.005
         PR3 = 250; // Load the period value
-        IPC2bits.T3IP = 0x02; // Set Timer1 Interrupt Priority Level
-        CLEARBIT(IFS0bits.T3IF); // Clear Timer1 Interrupt Flag
-        SETBIT(IEC0bits.T3IE); // Enable Timer1 interrupt
+        IPC2bits.T3IP = 0x02; // Set Timer3 Interrupt Priority Level
+        CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
+        SETBIT(IEC0bits.T3IE); // Enable Timer3 interrupt
         SETBIT(T3CONbits.TON); // Start Timer
         
 }
