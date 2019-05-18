@@ -168,10 +168,11 @@ void __attribute__((interrupt)) _T3Interrupt (void) {
 
 void initTimer1(){
     //task 2
-     // l trigger an interrupt every 1 second.
+     // trigger an interrupt every 1 second.
      //enable LPOSCEN
     __builtin_write_OSCCONL(OSCCONL | 2);
     T1CONbits.TON = 0; //Disable Timer
+    //Notes: Timer1 has access to a 32kHz external clock
     T1CONbits.TCS = 1; //Select external clock
     T1CONbits.TSYNC = 0; //Disable Synchronization
     T1CONbits.TCKPS = 0b00; //Select 1:1 Prescaler
@@ -186,15 +187,16 @@ void initTimer1(){
 
 void initTimer2(){
       // Task 1
-    // setup Timer 1 to raise an interrupt every 5ms 
+      // setup Timer 2 to raise an interrupt every 2 ms 
         CLEARBIT(T2CONbits.TON); // Disable Timer
+        // Notes: the system clock operates at 12.8Mhz
         CLEARBIT(T2CONbits.TCS); // Select internal instruction cycle clock
         CLEARBIT(T2CONbits.TGATE); // Disable Gated Timer mode
         TMR2 = 0x00; // Clear timer register
-        T2CONbits.TCKPS = 0b11; // Select 1:64 Prescaler
-        // Notes: 5ms -> PR2 = 500
-        // It is impossible to observe by eyes, therefore we increase the number a bit.
-        PR2 = 800; // Load the period value
+        T2CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
+        // Notes: (period * prescale) / clock freq. = actual time in second
+        // (100 * 256) / 12800000 = 0.002
+        PR2 = 100; // Load the period value
         IPC1bits.T2IP = 0x02; // Set Timer1 Interrupt Priority Level
         CLEARBIT(IFS0bits.T2IF); // Clear Timer1 Interrupt Flag
         SETBIT(IEC0bits.T2IE); // Enable Timer1 interrupt
@@ -204,13 +206,17 @@ void initTimer2(){
 
 void initTimer3(){
     // Task 3
-    // setup Timer 3 to raise an interrupt every 5ms 
+    // setup Timer 3 to raise an interrupt every 5 ms 
+    // Notes: similar configuration to Timer 2
         CLEARBIT(T3CONbits.TON); // Disable Timer
+         // Notes: the system clock operates at 12.8Mhz
         CLEARBIT(T3CONbits.TCS); // Select internal instruction cycle clock
         CLEARBIT(T3CONbits.TGATE); // Disable Gated Timer mode
         TMR3 = 0x00; // Clear timer register
-        T3CONbits.TCKPS = 0b11; // Select 1:64 Prescaler
-        PR3 = 32767; // Load the period value
+        T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
+        // Notes: (period * prescale) / clock freq. = actual time in second
+        // (250 * 256) / 12800000 = 0.005
+        PR3 = 250; // Load the period value
         IPC2bits.T3IP = 0x02; // Set Timer1 Interrupt Priority Level
         CLEARBIT(IFS0bits.T3IF); // Clear Timer1 Interrupt Flag
         SETBIT(IEC0bits.T3IE); // Enable Timer1 interrupt
