@@ -137,11 +137,14 @@ void __attribute__((interrupt)) _T1Interrupt (void) {
 void __attribute__((interrupt)) _T2Interrupt (void) {
   
     toggleLED(0);
-    IFS0bits.T2IF = 0; // Clear Timer1 Interrupt Flag
+    IFS0bits.T2IF = 0; // Clear Timer2 Interrupt Flag
    
 }
 
 void __attribute__((interrupt)) _T3Interrupt (void) {
+//TODO: print time in format mm:ss.xxx (minute,second and milliseconds respectively.)
+
+
 
 //    char buff[100];
 //    time_t now = time(0);
@@ -156,13 +159,11 @@ void __attribute__((interrupt)) _T3Interrupt (void) {
     toggleLED(3);
         
     
-    IFS0bits.T3IF = 0; // Clear Timer1 Interrupt Flag
-    
-    
-    
-    
-    
-   
+
+
+
+    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
+
 }
 
 
