@@ -217,7 +217,7 @@ void initTimer3(){
         T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
         // Notes: (period * prescale) / clock freq. = actual time in second
         // (250 * 256) / 12800000 = 0.005
-        PR3 = 250; // Load the period value
+        PR3 = 50000; // Load the period value
         IPC2bits.T3IP = 0x02; // Set Timer3 Interrupt Priority Level
         CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
         SETBIT(IEC0bits.T3IE); // Enable Timer3 interrupt
