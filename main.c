@@ -10,6 +10,7 @@
 #include "lcd.h"
 #include "led.h"
 
+
 #define _POSIX_C_SOURCE 200809L
 #define LEDTRIS TRISA
 #define LED1_TRIS TRISAbits.TRISA4
@@ -122,9 +123,27 @@ void turnLED(int ledNum, int on){
 }
 
 int count = 0;
-time_t timer;
+
 char buffer[128];
 struct tm* tm_info;
+
+/*
+void print_current_time_with_ms (void){
+    long    ms;
+    time_t  s;
+    struct timespec spec;
+    
+    clock_gettime(CLOCK_REALTIME, &spec);
+    
+    s = spec.tv_sec;
+    ms = round(spec.tv_nsec / 1.0e6);
+    if (ms > 999){
+        s++;
+        ms = 0;
+    }
+        
+}
+ */
 
 
 void __attribute__((interrupt)) _T1Interrupt (void) {
@@ -134,35 +153,38 @@ void __attribute__((interrupt)) _T1Interrupt (void) {
    
 }
 
+int milisecCounter;
+int secCounter;
+int minCounter;
+
+
 void __attribute__((interrupt)) _T2Interrupt (void) {
-  
+    
     toggleLED(0);
     IFS0bits.T2IF = 0; // Clear Timer2 Interrupt Flag
-   
+    
 }
 
+
+
 void __attribute__((interrupt)) _T3Interrupt (void) {
-//TODO: print time in format mm:ss.xxx (minute,second and milliseconds respectively.)
 
-
-
-//    char buff[100];
-//    time_t now = time(0);
-//    strftime(buff, 100, "%H:%M:%S", localtime(&now));
-//    lcd_printf("%s\n", buff);
-   
-    time(&timer);
-    tm_info = localtime(&timer);
-    strftime(buffer, 128, "%M:%S:%X", tm_info);
-    lcd_locate(0,0);
-    lcd_printf("%s\n", buffer);
-    toggleLED(3);
+    if (milisecCounter == 1000){
+        milisecCounter = 0;
+        secCounter++;
+        lcd_locate(0,0);
+        lcd_printf("%02d:%02d.%03d", minCounter, secCounter, milisecCounter);
+        toggleLED(3);
+    }
+    if (secCounter == 60){
+        secCounter = 0;
+        minCounter++;
+    }
         
+    milisecCounter++;
     
-
-
-
     IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
+   
 
 }
 
@@ -207,7 +229,7 @@ void initTimer2(){
 
 void initTimer3(){
     // Task 3
-    // setup Timer 3 to raise an interrupt every 5 ms 
+    // setup Timer 3 to raise an interrupt every 1 ms 
     // Notes: similar configuration to Timer 2
         CLEARBIT(T3CONbits.TON); // Disable Timer
          // Notes: the system clock operates at 12.8Mhz
@@ -216,8 +238,8 @@ void initTimer3(){
         TMR3 = 0x00; // Clear timer register
         T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
         // Notes: (period * prescale) / clock freq. = actual time in second
-        // (250 * 256) / 12800000 = 0.005
-        PR3 = 50000; // Load the period value
+        // (50 * 256) / 12800000 = 0,001
+        PR3 = 50; // Load the period value
         IPC2bits.T3IP = 0x02; // Set Timer3 Interrupt Priority Level
         CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
         SETBIT(IEC0bits.T3IE); // Enable Timer3 interrupt
@@ -239,23 +261,10 @@ void main(){
 	lcd_initialize();
 	lcd_clear();
 	lcd_locate(0,0);
-    
-        //strftime(buffer, 26, "%MM:%SS P ", tm_info);
-    
-     //CLEARLED(LED1_TRIS);
+
     initTimers();
   
-       
-   
-	while(1){
-        
-        
-        
-        
-       
-    }
-    
-    
+	while(1){}
 
 }
 
