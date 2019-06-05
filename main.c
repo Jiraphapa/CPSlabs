@@ -133,6 +133,7 @@ void __attribute__((interrupt)) _T3Interrupt (void) {
         time = 0; 
         if (iter == 2){
             iter = 0;
+	    toggleLED(0);
         } else {
             toggleLED(0);
             iter++; 
