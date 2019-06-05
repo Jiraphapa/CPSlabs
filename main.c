@@ -6,10 +6,6 @@
 
 #include "lcd.h"
 
-#define DSCK_AD1    AD1PCFGLbits.PCFG11
-#define DSCK_AD2    AD2PCFGLbits.PCFG11
-#define DSCK_TRIS   TRISBbits.TRISB11
-
 #define _POSIX_C_SOURCE 200809L
 #define LEDTRIS TRISA
 #define LED1_TRIS TRISAbits.TRISA4
@@ -32,20 +28,10 @@
 #define LED5_PORT PORTAbits.RA0
 #define LED5 0
 
-// configure DAC pins
-/*
-#define DSCK_AD1 DA1PCFGLbits.PCFG11
-#define DSCK_AD2 DA1PCFGLbits.PCFG11
-#define DSCK_TRIS TRISBbits.TRISB11
 
-#define DSDI_AD1 DA1PCFGLbits.PCFG10
-#define DSDI_AD2 DA1PCFGLbits.PCFG10
-#define DSDI_TRIS TRISBbits.TRISB10
 
-#define DSCK_AD1 DA1PCFGLbits.PCFG13
-#define DSCK_AD2 DA1PCFGLbits.PCFG13
-#define DSCK_TRIS TRISBbits.TRISB13
-*/
+
+
 
 //  I/O pins:  SDI (RB10/AN10), SCK (RB11/AN11) and LDAC (RB13/AN13).
 // In order to use these pins as digital I/O, these must be configured as digital for both ADC registers
@@ -64,7 +50,8 @@
 #define DLDAC_TRIS  TRISBbits.TRISB13
 
 
-
+#define CS_TRIS TRISDbits.TRISD8
+#define CS_PORT PORTDbits.RD8
 
 
 // Chip select
@@ -115,18 +102,39 @@ void toggleLED(int ledNum){
 
 int timerTask[3] = { 500, 2000, 1000 };
 int digitalLevel[3] = { 1000, 2500, 3500 };
+int digitalData[16];
+
+int data1[16] = {0,0,0,1,0,1,1,1,1,1,0,0,   1,1,1,1};
+int data2[16] = {0,0,1,0,0,0,1,1,1,0,0,1,   1,1,1,1};
+//int data2[16] = {1,0,0,1,1,1,0,0,0,1,0,0,   1,1,1,1};
+int data3[16] = {0,0,1,1,0,1,0,1,1,0,1,1,   1,1,1,1};
+//int data3[16] = {1,1,0,1,1,0,1,0,1,1,0,0,   1,1,1,1};
+
 int iter = 0;
 int time = 0;
+int data[16];
+    
+    
+
 
 void __attribute__((interrupt)) _T3Interrupt (void) {
     
-    
+    int i;
     if (time == timerTask[iter]){
+        for (i = 0; i < 16; i++){
+            if (iter == 0)
+                data[i] =  data1[i];
+            else if (iter == 1)
+                data[i] =  data2[i];
+            else if (iter == 2)
+                data[i] =  data3[i];
+        }
+
         time = 0; 
         if (iter == 2){
             iter = 0;
-               
         } else {
+            toggleLED(0);
             iter++; 
         }
     }
@@ -138,9 +146,7 @@ void __attribute__((interrupt)) _T3Interrupt (void) {
 }
 
 void initTimer3(){
-    // Task 3
-    // setup Timer 3 to raise an interrupt every 1 ms 
-    // Notes: similar configuration to Timer 2
+
         CLEARBIT(T3CONbits.TON); // Disable Timer
          // Notes: the system clock operates at 12.8Mhz
         CLEARBIT(T3CONbits.TCS); // Select internal instruction cycle clock
@@ -157,10 +163,11 @@ void initTimer3(){
         
 }
 
+void setupDAC(){
 
-void setupADC(){
-    CLEARBIT(DSCK_AD1);
-    CLEARBIT(DSCK_AD2);
+    
+    SETBIT(DSCK_AD1);
+    SETBIT(DSCK_AD2);
     CLEARBIT(DSCK_TRIS);
     
     SETBIT(DSPI_AD1); // set Pin to Digital 
@@ -170,160 +177,42 @@ void setupADC(){
     SETBIT(DLDAC_AD1); // set Pin to Digital 
     SETBIT(DLDAC_AD2); // set Pin to Digital 
     CLEARBIT(DLDAC_TRIS); // set Pin to Output
-    
-    //CLEARBIT(DCS_TRIS); // Set the CS bit 
-    CLEARBIT(PORTDbits.RD8); // Set the CS bit 
-    
-    // DAC accepts 15 bits
-    int i;
-    // write command for (MCP4822) 12-bit DAC
-    // A/B = 1 write to DACb, = 0 write to DACa
-    // _ don't care
-    // GA output gain bit 1 = 1x, 0 = 2x
-    // SHDN output shutdown control bit, 1 = active mode
-    // D11:D0 DAC input data bits
-    int config[16] = {1,1,1,1, 1,1,1,1,1,0,1,0,0,0};
-    
-    int j=1;
+
+    CLEARBIT(CS_TRIS); // set cs pin to output
+
    
-    for(i=0; i<16 ; i++)
-    {
-        //DSPI_AD1
-        //DSPI_AD1 |= (config[j] & BV(index)) >> i << 10; 
-     
-       
-            
-        
-         // set the SDI bit if the input bit is one
-        //DSPI_AD1 |= (config[j] & BV(i)) >> 0 << 10; 
-        //CLEARBIT(DSPI_AD1); 
-        SETBIT(DSPI_AD1); // set Pin to Digital 
-        SETBIT(DSPI_AD2); // set Pin to Digital 
-        
-        // toggle SCK bit
-        CLEARBIT(DSCK_AD1);
-        CLEARBIT(DSCK_AD2);
-        Nop();
-        SETBIT(DSCK_AD1);
-        SETBIT(DSCK_AD2);
-       
-        
-    }
-    j++;
-    
-    SETBIT(PORTDbits.RD8); // de-select the CS bit 
-    
-    Nop();
-    CLEARBIT(DSPI_AD1); // clear data bit
-    CLEARBIT(DSPI_AD2); 
-    Nop();
-    
-    // toggle LDAC port low then high to output new voltage
-    CLEARBIT(DLDAC_AD1); // set Pin to Digital 
-    Nop();
-    SETBIT(DLDAC_AD2); // set Pin to Digital 
-    
-   
-    
-    
 }
 
-void convert(){
-    
-}
 
 void convertDAC(){
-    
-    /*
-     // DAC accepts 15 bits
-    int i;
-    // write command for (MCP4822) 12-bit DAC
-    // A/B = 1 write to DACb, = 0 write to DACa
-    // _ don't care
-    // GA output gain bit 1 = 1x, 0 = 2x
-    // SHDN output shutdown control bit, 1 = active mode
-    // D11:D0 DAC input data bits
-    int config[16] = {1,1,1,1, 1,1,1,1,1,0,1,0,0,0};
-    
-    int j=1;
-   
-    for(i=0; i<16 ; i++)
-    {
-        //DSPI_AD1
-        //DSPI_AD1 |= (config[j] & BV(index)) >> i << 10; 
-     
-       
-        
-         // set the SDI bit if the input bit is one
-        //DSPI_AD1 |= (config[j] & BV(i)) >> 0 << 10; 
-        //CLEARBIT(DSPI_AD1); 
-        SETBIT(DSPI_AD1); // set Pin to Digital 
-        SETBIT(DSPI_AD2); // set Pin to Digital 
-        
-         // toggle SCK bit
-        CLEARBIT(DSCK_AD1);
-        CLEARBIT(DSCK_AD2);
-        Nop();
-        SETBIT(DSCK_AD1);
-        SETBIT(DSCK_AD2);
-       
-        
-    }
-    j++;
-    
-    SETBIT(PORTDbits.RD8); // de-select the CS bit 
-    Nop();
-    CLEARBIT(DSPI_AD1); // clear data bit
-    CLEARBIT(DSPI_AD2); 
-    Nop();
-    // toggle LDAC port low then high to output new voltage
-    CLEARBIT(DLDAC_AD1); // set Pin to Digital 
-    Nop();
-    SETBIT(DLDAC_AD2); // set Pin to Digital 
-    
-*/
-    
-}
 
-
-void setupDAC2(){
-    
-    SETBIT(PORTBbits.RB11);
-    SETBIT(PORTBbits.RB13);
-    SETBIT(PORTBbits.RB10);
-    
-    
-    CLEARBIT(DSCK_AD1);
-    CLEARBIT(DSCK_AD2);
-    CLEARBIT(DSCK_TRIS);
-    
-    SETBIT(DSPI_AD1); // set Pin to Digital 
-    SETBIT(DSPI_AD2); // set Pin to Digital 
-    CLEARBIT(DSPI_TRIS); // set Pin to Output
-    
-    SETBIT(DLDAC_AD1); // set Pin to Digital 
-    SETBIT(DLDAC_AD2); // set Pin to Digital 
-    CLEARBIT(DLDAC_TRIS); // set Pin to Output
-   
-}
-void convertDAC2(){
-    int data[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-    // chip select
-    CLEARBIT(PORTDbits.RD8);
+    CLEARBIT(CS_PORT);
     int i;
+    
     for (i = 0; i < 16; i++){
-        PORTBbits.RB10 &= data[i];
-        SETBIT(PORTBbits.RB11);
+        
+        PORTBbits.RB10 |=  data[i];
+        
+        //PORTB |= (data[i] & BV(2)) >> 2 << 10;
         Nop();
-        CLEARBIT(PORTBbits.RB11);
+        PORTBbits.RB11 = 0;
+        Nop();
+        PORTBbits.RB11 = 1;
+        Nop();
     }
-    SETBIT(PORTDbits.RD8);
+    
+    SETBIT(CS_PORT);
+    //SETBIT(PORTDbits.RD8);
     Nop();
-    CLEARBIT(PORTBbits.RB10);
+    PORTB = 0; 
     Nop();
     CLEARBIT(DLDAC_AD1);
     Nop();
     SETBIT(DLDAC_AD1);
+    Nop();
+    
+    CLEARBIT(PORTBbits.RB10);
+    Nop();
 }
 
 
@@ -337,11 +226,13 @@ void main(){
 	lcd_locate(0,0);
     lcd_printf("hello kuy");
 
-    setupDAC2();
+    setupDAC();
     initTimer3();
+
+ 
 	
 	while(1){
-        convertDAC2();
+        convertDAC();
 	}
 }
 
