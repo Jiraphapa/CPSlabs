@@ -100,15 +100,22 @@ void toggleLED(int ledNum){
     }
 }
 
-int timerTask[3] = { 500, 2000, 1000 };
+int timerTask[3] = { 1000, 500, 2000 };
 int digitalLevel[3] = { 1000, 2500, 3500 };
 int digitalData[16];
+//{0,0,0,1, 0,0,1,1, 1,1,1,0, 1,0,0,0};
 
-int data1[16] = {0,0,0,1,0,1,1,1,1,1,0,0,   1,1,1,1};
-int data2[16] = {0,0,1,0,0,0,1,1,1,0,0,1,   1,1,1,1};
+//{0,0,0,1, 0,0,0,1, 0,1,1,1 ,1,1,0,0};
+int data1[16] = {0,0,0,1, 0,0,1,1, 1,1,1,0, 1,0,0,0};
+
+
+//{0,0,0,1, 0,0,1,0, 0,0,1,1, 1,0,0,1};
+int data2[16] = {0,0,0,1, 1,0,0,1, 1,1,0,0, 0,1,0,0};
 //int data2[16] = {1,0,0,1,1,1,0,0,0,1,0,0,   1,1,1,1};
-int data3[16] = {0,0,1,1,0,1,0,1,1,0,1,1,   1,1,1,1};
-//int data3[16] = {1,1,0,1,1,0,1,0,1,1,0,0,   1,1,1,1};
+
+//{0,0,1,1, 0,1,0,1, 1,0,1,1, 1,0,0,0};
+int data3[16] = {0,0,0,1, 1,1,0,1, 1,0,1,0, 1,1,0,0};
+//int data3[16] = {0,0,0,1, 1,1,0,1, 1,0,1,0, 1,1,0,0};
 
 int iter = 0;
 int time = 0;
@@ -133,7 +140,7 @@ void __attribute__((interrupt)) _T3Interrupt (void) {
         time = 0; 
         if (iter == 2){
             iter = 0;
-	    toggleLED(0);
+            toggleLED(0);
         } else {
             toggleLED(0);
             iter++; 
@@ -188,16 +195,27 @@ void setupDAC(){
 void convertDAC(){
 
     CLEARBIT(CS_PORT);
+    Nop();
     int i;
     
-    for (i = 0; i < 16; i++){
+    for (i = 0; i <16; i++){
         
-        PORTBbits.RB10 |=  data[i];
+        PORTBbits.RB11 = 0;  
+        Nop();
+        if(data[i]==1)
+        {
+        SETBIT(PORTBbits.RB10);
         
+        }
+        else{
+             CLEARBIT(PORTBbits.RB10);
+             
+             
+        }
+    
         //PORTB |= (data[i] & BV(2)) >> 2 << 10;
         Nop();
-        PORTBbits.RB11 = 0;
-        Nop();
+       
         PORTBbits.RB11 = 1;
         Nop();
     }
@@ -205,35 +223,25 @@ void convertDAC(){
     SETBIT(CS_PORT);
     //SETBIT(PORTDbits.RD8);
     Nop();
-    PORTB = 0; 
+    CLEARBIT(PORTBbits.RB10);
     Nop();
     CLEARBIT(DLDAC_AD1);
     Nop();
     SETBIT(DLDAC_AD1);
     Nop();
     
-    CLEARBIT(PORTBbits.RB10);
-    Nop();
+    
 }
 
 
 void main(){
-    
-    
 	//Init LCD
 	__C30_UART=1;	
-	lcd_initialize();
-	lcd_clear();
-	lcd_locate(0,0);
-    lcd_printf("hello kuy");
-
     setupDAC();
     initTimer3();
-
- 
-	
 	while(1){
         convertDAC();
+        //__delay(100000);
 	}
 }
 
