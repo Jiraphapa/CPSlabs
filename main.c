@@ -28,8 +28,11 @@
 #define LED5_PORT PORTAbits.RA0
 #define LED5 0
 
-
-
+// lab4
+// TODO: make dynamic frequency
+#define FREQ 25000
+#define MAX_V 4.096
+#define MIN_V 0.0
 
 
 
@@ -100,57 +103,86 @@ void toggleLED(int ledNum){
     }
 }
 
-int timerTask[3] = { 1000, 500, 2000 };
+// lab 3 presiods
+//int timerTask[3] = { 1000, 500, 2000 };
+// lab 4 : define period
+
 int digitalLevel[3] = { 1000, 2500, 3500 };
 int digitalData[16];
-//{0,0,0,1, 0,0,1,1, 1,1,1,0, 1,0,0,0};
-
-//{0,0,0,1, 0,0,0,1, 0,1,1,1 ,1,1,0,0};
+// config = 0001
+// data = 1000,2500,5000
 int data1[16] = {0,0,0,1, 0,0,1,1, 1,1,1,0, 1,0,0,0};
-
-
-//{0,0,0,1, 0,0,1,0, 0,0,1,1, 1,0,0,1};
 int data2[16] = {0,0,0,1, 1,0,0,1, 1,1,0,0, 0,1,0,0};
-//int data2[16] = {1,0,0,1,1,1,0,0,0,1,0,0,   1,1,1,1};
-
-//{0,0,1,1, 0,1,0,1, 1,0,1,1, 1,0,0,0};
 int data3[16] = {0,0,0,1, 1,1,0,1, 1,0,1,0, 1,1,0,0};
-//int data3[16] = {0,0,0,1, 1,1,0,1, 1,0,1,0, 1,1,0,0};
 
-int iter = 0;
-int time = 0;
+// lab 3 flags
+//int iter = 0;
+//int time = 0;
 int data[16];
     
+float counter = MIN_V;
+
+int dac_convert(int bin){
+    int hehe = 0b00011010101010101;
+    CLEARBIT(CS_PORT);
+    Nop();
+    int i;
     
+    for (i = 0; i <16; i++){
+        
+        PORTBbits.RB11 = 0;  
+        Nop();
+
+        //SETBIT(PORTBbits.RB10);  
+        int val;
+        val = bin |= BV(i);
+        PORTBbits.RB10 = val;
+                
+        //PORTB |= (data[i] & BV(i)) >> 2 << 10;
+        Nop();
+       
+        PORTBbits.RB11 = 1;
+        Nop();
+    }
+    
+    SETBIT(CS_PORT);
+    //SETBIT(PORTDbits.RD8);
+    Nop();
+    CLEARBIT(PORTBbits.RB10);
+    Nop();
+    CLEARBIT(DLDAC_AD1);
+    Nop();
+    SETBIT(DLDAC_AD1);
+    Nop();
+    
+}
+int volt_to_binary(float volt){
+    int bin;
+    
+    int digital_range = 4095;
+    float max_volt = 4.096;
+    float min_volt = 0;
+    float min_digital = 0;
+    
+    bin = (((volt - min_volt)/max_volt) * digital_range) + min_digital;
+
+    // first 4 config bits: 0001 xxxx xxxx xxxx
+    return bin |= 4096;
+}
 
 
 void __attribute__((interrupt)) _T3Interrupt (void) {
+    counter = counter + 0.1;
     
-    int i;
-    if (time == timerTask[iter]){
-        for (i = 0; i < 16; i++){
-            if (iter == 0)
-                data[i] =  data1[i];
-            else if (iter == 1)
-                data[i] =  data2[i];
-            else if (iter == 2)
-                data[i] =  data3[i];
-        }
-
-        time = 0; 
-        if (iter == 2){
-            iter = 0;
-            toggleLED(0);
-        } else {
-            toggleLED(0);
-            iter++; 
-        }
-    }
-    time++;
-    
+    toggleLED(0);
     IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
+    
+    int bin = volt_to_binary(counter);
+    dac_convert(bin);
+    
+    if(counter >= MAX_V)
+        counter = 0;
    
-
 }
 
 void initTimer3(){
@@ -163,7 +195,7 @@ void initTimer3(){
         T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
         // Notes: (period * prescale) / clock freq. = actual time in second
         // (25000 * 256) / 12800000 = 0,500
-        PR3 = 50; // Load the period value
+        PR3 = FREQ; // Load the period value
         IPC2bits.T3IP = 0x02; // Set Timer3 Interrupt Priority Level
         CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
         SETBIT(IEC0bits.T3IE); // Enable Timer3 interrupt
