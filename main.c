@@ -30,7 +30,7 @@
 
 // lab4
 // TODO: make dynamic frequency
-#define FREQ 25000
+#define FREQ 50
 #define MAX_V 4.096
 #define MIN_V 0.0
 
@@ -120,23 +120,25 @@ int data3[16] = {0,0,0,1, 1,1,0,1, 1,0,1,0, 1,1,0,0};
 //int time = 0;
 int data[16];
     
-float counter = MIN_V;
+
 
 int dac_convert(int bin){
-    int hehe = 0b00011010101010101;
+
     CLEARBIT(CS_PORT);
     Nop();
     int i;
-    
-    for (i = 0; i <16; i++){
+    int j;
+    for (i = 15; i >= 0; i--){
         
         PORTBbits.RB11 = 0;  
         Nop();
 
         //SETBIT(PORTBbits.RB10);  
         int val;
-        val = bin |= BV(i);
-        PORTBbits.RB10 = val;
+        // val should be 1/0
+        val = bin >> i;
+        //val2 = val |= BV(i);
+        PORTBbits.RB10 = bin >> i;
                 
         //PORTB |= (data[i] & BV(i)) >> 2 << 10;
         Nop();
@@ -157,6 +159,10 @@ int dac_convert(int bin){
     
 }
 int volt_to_binary(float volt){
+    // EXAMPLE decimal: 1000
+    //bin = 0b0001001111101000;
+    // 2500
+    //bin = 0b0001100111000100;
     int bin;
     
     int digital_range = 4095;
@@ -165,23 +171,30 @@ int volt_to_binary(float volt){
     float min_digital = 0;
     
     bin = (((volt - min_volt)/max_volt) * digital_range) + min_digital;
-
     // first 4 config bits: 0001 xxxx xxxx xxxx
-    return bin |= 4096;
+    return bin |= 0b0001000000000000;
 }
 
+float counter = MIN_V;
+
+int order= 0;
 
 void __attribute__((interrupt)) _T3Interrupt (void) {
-    counter = counter + 0.1;
+    if (order == 0)
+        counter += 0.01 ;
+    else
+        counter -= 0.01;
     
     toggleLED(0);
     IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
     
-    int bin = volt_to_binary(counter);
+    int bin = volt_to_binary(counter);    
     dac_convert(bin);
     
     if(counter >= MAX_V)
-        counter = 0;
+        order = 1;
+    if(counter <= MIN_V)
+        order = 0;
    
 }
 
