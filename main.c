@@ -30,7 +30,7 @@
 
 // lab4
 // TODO: make dynamic frequency
-#define FREQ 50
+#define TIME_FREQ 50000 //0.1 millisecond
 #define MAX_V 4.096
 #define MIN_V 0.0
 
@@ -55,6 +55,8 @@
 
 #define CS_TRIS TRISDbits.TRISD8
 #define CS_PORT PORTDbits.RD8
+
+#define FREQ 500
 
 
 // Chip select
@@ -119,6 +121,7 @@ int data3[16] = {0,0,0,1, 1,1,0,1, 1,0,1,0, 1,1,0,0};
 //int iter = 0;
 //int time = 0;
 int data[16];
+
     
 
 
@@ -179,22 +182,25 @@ float counter = MIN_V;
 
 int order= 0;
 
+
 void __attribute__((interrupt)) _T3Interrupt (void) {
-    if (order == 0)
-        counter += 0.01 ;
-    else
-        counter -= 0.01;
     
-    toggleLED(0);
-    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
     
+    
+        
     int bin = volt_to_binary(counter);    
+    
+    //int test = 0b0001011111010000; //this is 2V
+    //int test = 0b0001001111101000; //this is 1V
     dac_convert(bin);
     
-    if(counter >= MAX_V)
-        order = 1;
-    if(counter <= MIN_V)
-        order = 0;
+    if (counter == MIN_V)
+        counter = MAX_V;
+    else if (counter == MAX_V)
+        counter = MIN_V;
+
+    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
+        
    
 }
 
@@ -208,7 +214,7 @@ void initTimer3(){
         T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
         // Notes: (period * prescale) / clock freq. = actual time in second
         // (25000 * 256) / 12800000 = 0,500
-        PR3 = FREQ; // Load the period value
+        PR3 = TIME_FREQ / (FREQ); // Load the period value
         IPC2bits.T3IP = 0x02; // Set Timer3 Interrupt Priority Level
         CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
         SETBIT(IEC0bits.T3IE); // Enable Timer3 interrupt
@@ -237,55 +243,13 @@ void setupDAC(){
 }
 
 
-void convertDAC(){
-
-    CLEARBIT(CS_PORT);
-    Nop();
-    int i;
-    
-    for (i = 0; i <16; i++){
-        
-        PORTBbits.RB11 = 0;  
-        Nop();
-        if(data[i]==1)
-        {
-        SETBIT(PORTBbits.RB10);
-        
-        }
-        else{
-             CLEARBIT(PORTBbits.RB10);
-             
-             
-        }
-    
-        //PORTB |= (data[i] & BV(2)) >> 2 << 10;
-        Nop();
-       
-        PORTBbits.RB11 = 1;
-        Nop();
-    }
-    
-    SETBIT(CS_PORT);
-    //SETBIT(PORTDbits.RD8);
-    Nop();
-    CLEARBIT(PORTBbits.RB10);
-    Nop();
-    CLEARBIT(DLDAC_AD1);
-    Nop();
-    SETBIT(DLDAC_AD1);
-    Nop();
-    
-    
-}
-
-
 void main(){
 	//Init LCD
 	__C30_UART=1;	
     setupDAC();
     initTimer3();
 	while(1){
-        convertDAC();
+      
         //__delay(100000);
 	}
 }
