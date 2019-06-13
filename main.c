@@ -181,6 +181,7 @@ int volt_to_binary(float volt){
 float counter = MIN_V;
 
 int order= 0;
+int ledCount = 1;
 
 
 void __attribute__((interrupt)) _T3Interrupt (void) {
@@ -198,11 +199,17 @@ void __attribute__((interrupt)) _T3Interrupt (void) {
         counter = MAX_V;
     else if (counter == MAX_V)
         counter = MIN_V;
-
+    
+    if(ledCount % 2 == 0)
+        toggleLED(2);
+    
+    ledCount = ledCount+1;
+    
     IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
         
    
 }
+
 
 void initTimer3(){
 
@@ -214,7 +221,15 @@ void initTimer3(){
         T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
         // Notes: (period * prescale) / clock freq. = actual time in second
         // (25000 * 256) / 12800000 = 0,500
-        PR3 = TIME_FREQ / (FREQ); // Load the period value
+        
+        // 50000/500*2 = 50
+        PR3 = TIME_FREQ/ (FREQ*2); // Load the period value
+        
+        // period = actual time in second * clock freq. / prescale
+        // PR3 = period/2
+        
+       // PR3 = (TIME_FREQ * 12800000 / (256))/2;
+        
         IPC2bits.T3IP = 0x02; // Set Timer3 Interrupt Priority Level
         CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
         SETBIT(IEC0bits.T3IE); // Enable Timer3 interrupt
