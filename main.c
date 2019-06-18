@@ -1,78 +1,117 @@
 #include <p33Fxxxx.h>
 //do not change the order of the following 3 definitions
-#define FCY 12800000UL
+#define FCY 12800000UL 
 #include <stdio.h>
-#include <time.h>
-
-#include <math.h>
 #include <libpic30.h>
 
 #include "lcd.h"
-#include "led.h"
 
-#define _POSIX_C_SOURCE 200809L
+
+// start: Servo configurtaion macros
+
+#define ZeroDeg 0
+#define NinetyDeg 90
+#define OneEightyDeg 180
+
+// end: Servo configuration macros
+
+
+
+///////////////////////////////////////////////////////////////////////////////
 
 /* Initial configuration by EE */
 // Primary (XT, HS, EC) Oscillator with PLL
 _FOSCSEL(FNOSC_PRIPLL);
 
 // OSC2 Pin Function: OSC2 is Clock Output - Primary Oscillator Mode: XT Crystal
-_FOSC(OSCIOFNC_OFF &POSCMD_XT);
+_FOSC(OSCIOFNC_OFF & POSCMD_XT); 
 
 // Watchdog Timer Enabled/disabled by user software
 _FWDT(FWDTEN_OFF);
 
 // Disable Code Protection
-_FGS(GCP_OFF);
+_FGS(GCP_OFF);  
 
-/*
-void print_current_time_with_ms (void){
-    long    ms;
-    time_t  s;
-    struct timespec spec;
-    
-    clock_gettime(CLOCK_REALTIME, &spec);
-    
-    s = spec.tv_sec;
-    ms = round(spec.tv_nsec / 1.0e6);
-    if (ms > 999){
-        s++;
-        ms = 0;
-    }
-        
-}
- */
+///////////////////////////////////////////////////////////////////////////////
 
-void __attribute__((interrupt)) _T3Interrupt(void)
+
+// start: Servo configuration functions
+
+// set OC8 and OC7 to work in PWM mode
+//command x and y of servo are connected to OC8 and OC7
+
+void setupOutputCompare()
 {
-
-    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Fla
-}
-
-void initTimer3()
-{
-    // Task 3
-    // setup Timer 3 to raise an interrupt every 1 ms
-    // Notes: similar configuration to Timer 2
-    CLEARBIT(T3CONbits.TON);   // Disable Timer
-                               // Notes: the system clock operates at 12.8Mhz
-    CLEARBIT(T3CONbits.TCS);   // Select internal instruction cycle clock
+    //sets up OC8 to work in PWM mode and be controlled by Timer 2
+    //sets up OC7 to work in PWM mode and be controlled by Timer 3
+    //OC8,OC8 pin will be set to high for n ms every 20ms.
+    // 0.9ms = 0 degrees
+    // 1.5ms = 90 degrees
+    // 2.1ms = 180 degrees
+    
+    //setup Timer 2
+    CLEARBIT(T2CONbits.TON); // Disable Timer
+    CLEARBIT(T2CONbits.TCS); // Select internal instruction cycle clock
+    CLEARBIT(T2CONbits.TGATE); // Disable Gated Timer mode
+    TMR2 = 0x00; // Clear timer register
+    T2CONbits.TCKPS = 0b10; // Select 1:64 Prescaler
+    CLEARBIT(IFS0bits.T2IF); // Clear Timer2 interrupt status flag
+    CLEARBIT(IEC0bits.T2IE); // Disable Timer2 interrupt enable control bit
+    PR2 = 4000; // Set timer period 20ms:
+    // 4000= 40*10^-3 * 12.8*10^6 * 1/64
+    
+   
+    //setup Timer 3
+    CLEARBIT(T3CONbits.TON); // Disable Timer
+    CLEARBIT(T3CONbits.TCS); // Select internal instruction cycle clock
     CLEARBIT(T3CONbits.TGATE); // Disable Gated Timer mode
-    TMR3 = 0x00;               // Clear timer register
-    T3CONbits.TCKPS = 0b11;    // Select 1:256 Prescaler
-    // Notes: (period * prescale) / clock freq. = actual time in second
-    // (50 * 256) / 12800000 = 0,001
-    PR3 = 50;                // Load the period value
-    IPC2bits.T3IP = 0x02;    // Set Timer3 Interrupt Priority Level
-    CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
-    SETBIT(IEC0bits.T3IE);   // Enable Timer3 interrupt
-    SETBIT(T3CONbits.TON);   // Start Timer
+    TMR3 = 0x00; // Clear timer register
+    T3CONbits.TCKPS = 0b10; // Select 1:64 Prescaler
+    CLEARBIT(IFS0bits.T3IF); // Clear Timer3 interrupt status flag
+    CLEARBIT(IEC0bits.T3IE); // Disable Timer3 interrupt enable control bit
+    PR3 = 4000; // Set timer period 20ms:
+    // 4000= 40*10^-3 * 12.8*10^6 * 1/64
+    
+    
+    //setup OC8
+    CLEARBIT(TRISDbits.TRISD8); /* Set OC8 as output */
+    //OC8R = 1000; /* Set the initial duty cycle to 5ms*/
+    //OC8R = 180; /* Set the initial duty cycle to 0.9ms*/
+    OC8R = 300; /* Set the initial duty cycle to 1.5ms*/
+    OC8RS = 1000; /* Load OCRS: next pwm duty cycle */
+    OC8CON = 0x0006; /* Set OC8: PWM, no fault check, Timer2 */
+    SETBIT(T2CONbits.TON); /* Turn Timer 2 on */
+    
+    //setup OC7
+    CLEARBIT(TRISDbits.TRISD7); /* Set OC7 as output */
+    //CLEARBIT(TRISDbits.TRISD7); /* Set OC8 as output */
+    //OC7R = 1000; /* Set the initial duty cycle to 5ms*/
+    //OC7R = 180; /* Set the initial duty cycle to 0.9ms*/
+    OC7R = 300; /* Set the initial duty cycle to 1.5ms*/
+    OC7RS = 1000; /* Load OCRS: next pwm duty cycle */
+    OC7CON = 0x0006; /* Set OC7: PWM, no fault check, Timer2 */
+    SETBIT(T3CONbits.TON); /* Turn Timer 3 on */
+    
 }
 
-void initTimers()
+// servoNum: 0 for X and 1 for Y
+void setupServo(int servoNum)
 {
-    initTimer3();
+    setupOutputCompare();
 }
+
+// duty cycle in microsecs
+void setDutyCycle(int servoNum, int dutyCycle)
+{
+    
+}
+
+
+
+
+// end: Servo configuration functions
+
+// start: Screen config
 
 void initTouchScreen()
 {
@@ -98,15 +137,15 @@ void touchModeY()
 void touchModeStandby()
 {
     SETBIT(PORTEbits.RE1);
-    SETBIT(PORTEBits.RE2);
-    CLEARSBIT(PORTEbits.RE3);
+    SETBIT(PORTEbits.RE2);
+    CLEARBIT(PORTEbits.RE3);
 }
 
 void initADC()
 {
     CLEARBIT(AD1CON1bits.ADON); //disable ADC
 
-    SETBIT(TRISEbits.TRISE15); //set TRISE AN9 to input
+    SETBIT(TRISEbits.TRISE8); //set TRISE AN9 to input
     CLEARBIT(AD1PCFGLbits.PCFG15);
 
     CLEARBIT(AD1CON1bits.AD12B);
@@ -115,7 +154,7 @@ void initADC()
 
     AD1CON2 = 0; //no scan sampling
 
-    CLEARBIT(AD1CON3Bits.ADRC); // internal clock source
+    CLEARBIT(AD1CON3bits.ADRC); // internal clock source
     AD1CON3bits.SAMC = 0x1F;    //sample to conversion clock = 31 tad
     AD1CON3bits.ADCS = 0x2;
 
@@ -126,7 +165,7 @@ void initADC2()
 {
     CLEARBIT(AD2CON1bits.ADON); //disable ADC
 
-    SETBIT(TRISEbits.TRISE9); //set TRISE AN9 to input
+    SETBIT(TRISEbits.TRISE8); //set TRISE AN9 to input
     CLEARBIT(AD2PCFGLbits.PCFG9);
 
     CLEARBIT(AD2CON1bits.AD12B);
@@ -135,7 +174,7 @@ void initADC2()
 
     AD1CON2 = 0; //no scan sampling
 
-    CLEARBIT(AD2CON3Bits.ADRC); // internal clock source
+    CLEARBIT(AD2CON3bits.ADRC); // internal clock source
     AD2CON3bits.SAMC = 0x1F;    //sample to conversion clock = 31 tad
     AD2CON3bits.ADCS = 0x2;
 
@@ -144,7 +183,7 @@ void initADC2()
 
 void readADC()
 {
-    AD1CHS0bits.CS0SA = 0x014;
+    AD1CHS0bits.CH0SA = 0x014;
     SETBIT(AD1CON1bits.SAMP);
     while (!AD1CON1bits.DONE)
         ;
@@ -154,19 +193,27 @@ void readADC()
 
 void readADC2()
 {
-    AD2CHS0bits.CS0SA = 0x014;
+    AD2CHS0bits.CH0SA = 0x014;
     SETBIT(AD2CON1bits.SAMP);
-    while (!AD2CON1bits.DONE)
-        ;
+    while (!AD2CON1bits.DONE);
     CLEARBIT(AD2CON1bits.DONE);
     return ADC1BUF0;
 }
 
-void main()
-{
-    __C30_UART = 1;
+// end: Screen config
 
-    while (1)
-    {
-    }
+
+
+void main(){
+	//Init LCD
+	__C30_UART=1;	
+	lcd_initialize();
+	lcd_clear();
+	lcd_locate(0,0);
+	lcd_printf("Hello World!");	
+	
+	while(1){
+		
+	}
 }
+
