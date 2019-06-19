@@ -9,9 +9,19 @@
 
 // start: Servo configurtaion macros
 
-#define ZeroDeg 0
-#define NinetyDeg 90
-#define OneEightyDeg 180
+// 4000= 20*10^-3 * 12.8*10^6 * 1/64
+#define PERIOD 4000 // timer period 20ms:
+// duty cycle = pulse width / period 
+// 0.9ms = 0 degree
+#define ZERO (0.955*PERIOD)
+// 1.5ms = 90 degree
+#define NINETY (0.925*PERIOD)
+// 2.1ms = 180 degree
+#define ONEEIGHTY (0.895*PERIOD)
+
+#define CH_X 0
+#define CH_Y 1
+
 
 // end: Servo configuration macros
 
@@ -40,14 +50,10 @@ _FGS(GCP_OFF);
 // set OC8 and OC7 to work in PWM mode
 //command x and y of servo are connected to OC8 and OC7
 
-void setupOutputCompare()
+void setupServo(uint8_t servoNum)
 {
-    //sets up OC8 to work in PWM mode and be controlled by Timer 2
-    //sets up OC7 to work in PWM mode and be controlled by Timer 3
+    //sets up OC8,OC8 to work in PWM mode and be controlled by Timer 2,3
     //OC8,OC8 pin will be set to high for n ms every 20ms.
-    // 0.9ms = 0 degrees
-    // 1.5ms = 90 degrees
-    // 2.1ms = 180 degrees
     
     //setup Timer 2
     CLEARBIT(T2CONbits.TON); // Disable Timer
@@ -57,56 +63,42 @@ void setupOutputCompare()
     T2CONbits.TCKPS = 0b10; // Select 1:64 Prescaler
     CLEARBIT(IFS0bits.T2IF); // Clear Timer2 interrupt status flag
     CLEARBIT(IEC0bits.T2IE); // Disable Timer2 interrupt enable control bit
-    PR2 = 4000; // Set timer period 20ms:
-    // 4000= 40*10^-3 * 12.8*10^6 * 1/64
-    
+    PR2 = PERIOD; // Set timer period 20ms:
    
-    //setup Timer 3
-    CLEARBIT(T3CONbits.TON); // Disable Timer
-    CLEARBIT(T3CONbits.TCS); // Select internal instruction cycle clock
-    CLEARBIT(T3CONbits.TGATE); // Disable Gated Timer mode
-    TMR3 = 0x00; // Clear timer register
-    T3CONbits.TCKPS = 0b10; // Select 1:64 Prescaler
-    CLEARBIT(IFS0bits.T3IF); // Clear Timer3 interrupt status flag
-    CLEARBIT(IEC0bits.T3IE); // Disable Timer3 interrupt enable control bit
-    PR3 = 4000; // Set timer period 20ms:
-    // 4000= 40*10^-3 * 12.8*10^6 * 1/64
-    
-    
-    //setup OC8
-    CLEARBIT(TRISDbits.TRISD8); /* Set OC8 as output */
-    //OC8R = 1000; /* Set the initial duty cycle to 5ms*/
-    //OC8R = 180; /* Set the initial duty cycle to 0.9ms*/
-    OC8R = 300; /* Set the initial duty cycle to 1.5ms*/
-    OC8RS = 1000; /* Load OCRS: next pwm duty cycle */
-    OC8CON = 0x0006; /* Set OC8: PWM, no fault check, Timer2 */
-    SETBIT(T2CONbits.TON); /* Turn Timer 2 on */
-    
-    //setup OC7
-    CLEARBIT(TRISDbits.TRISD7); /* Set OC7 as output */
-    //CLEARBIT(TRISDbits.TRISD7); /* Set OC8 as output */
-    //OC7R = 1000; /* Set the initial duty cycle to 5ms*/
-    //OC7R = 180; /* Set the initial duty cycle to 0.9ms*/
-    OC7R = 300; /* Set the initial duty cycle to 1.5ms*/
-    OC7RS = 1000; /* Load OCRS: next pwm duty cycle */
-    OC7CON = 0x0006; /* Set OC7: PWM, no fault check, Timer2 */
-    SETBIT(T3CONbits.TON); /* Turn Timer 3 on */
-    
-}
+    if(servoNum == CH_X)
+    {
+        //setup OC7
+        CLEARBIT(TRISDbits.TRISD7); /* Set OC7 as output */
+        OC7R = NINETY; /* Set the initial duty cycle to 1.5 ms (90 degree) */
+        OC7RS = NINETY; /* Load OCRS: next pwm duty cycle */
+        OC7CON = 0x0006; /* Set OC7: PWM, no fault check, Timer2 */
+        SETBIT(T3CONbits.TON); /* Turn Timer 3 on */
+    }
 
-// servoNum: 0 for X and 1 for Y
-void setupServo(int servoNum)
-{
-    setupOutputCompare();
+    else if(servoNum == CH_Y)
+    {
+        //setup OC8
+        CLEARBIT(TRISDbits.TRISD8); 
+        OC8R = NINETY; 
+        OC8RS = NINETY; 
+        OC8CON = 0x0006; 
+        SETBIT(T2CONbits.TON);
+    }
+    
 }
 
 // duty cycle in microsecs
-void setDutyCycle(int servoNum, int dutyCycle)
+void setDutyCycle(uint8_t servoNum, uint8_t dutyCycle)
 {
-    
+    if(servoNum == CH_X)
+    {
+        OC7RS = PERIOD - dutyCycle; /* Load OCRS: next pwm duty cycle */
+    }
+    else if(servoNum == CH_Y)
+    {
+        OC8RS = PERIOD - dutyCycle; /* Load OCRS: next pwm duty cycle */
+    }
 }
-
-
 
 
 // end: Servo configuration functions
@@ -185,8 +177,7 @@ void readADC()
 {
     AD1CHS0bits.CH0SA = 0x014;
     SETBIT(AD1CON1bits.SAMP);
-    while (!AD1CON1bits.DONE)
-        ;
+    while (!AD1CON1bits.DONE);
     CLEARBIT(AD1CON1bits.DONE);
     return ADC1BUF0;
 }
@@ -212,7 +203,38 @@ void main(){
 	lcd_locate(0,0);
 	lcd_printf("Hello World!");	
 	
+    //TODO: ----------------- init adc -----------------
+
+    // ----------------- init servo -----------------
+    setupServo(CH_X); 
+    setupServo(CH_Y); 
+
+    // ----------------- start: define range for x,y
+    uint16_t X;
+    // invert signal
+    uint16_t minX = 0xffff;
+    uint16_t maxX = 0x0000;
+
+    uint16_t Y;
+    uint16_t minY = 0xffff;
+    uint16_t maxY = 0x0000;
+
+    uint16_t pwmX;
+    uint16_t pwmY;
+
+    uint16_t i = 0;
+
+    //  end: define range for x,y -----------------
+
 	while(1){
+
+        // servo X
+        // x val read from ADC, assume to be 100
+        X = 100;
+        pwmX = 2*240L*(X-minX)/(maxX-minX); // HIGH - LOW = 240
+        motor_set_duty(CHANNEL_X, Xpulse);
+        lcd_locate(0,3);
+        lcd_printf("pwm for X:%d", pwmX);
 		
 	}
 }
