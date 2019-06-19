@@ -47,14 +47,12 @@ _FGS(GCP_OFF);
 
 // start: Servo configuration functions
 
-// set OC8 and OC7 to work in PWM mode
-//command x and y of servo are connected to OC8 and OC7
+/*  set OC8 and OC7 to work in PWM mode and be controlled by Timer 2
+command x and y of servo are connected to OC8 and OC7
+OC8,OC8 pin will be set to high for ... ms every 20ms. */
 
 void setupServo(uint8_t servoNum)
 {
-    //sets up OC8,OC8 to work in PWM mode and be controlled by Timer 2,3
-    //OC8,OC8 pin will be set to high for n ms every 20ms.
-    
     //setup Timer 2
     CLEARBIT(T2CONbits.TON); // Disable Timer
     CLEARBIT(T2CONbits.TCS); // Select internal instruction cycle clock
@@ -92,11 +90,11 @@ void setDutyCycle(uint8_t servoNum, uint8_t dutyCycle)
 {
     if(servoNum == CH_X)
     {
-        OC7RS = PERIOD - dutyCycle; /* Load OCRS: next pwm duty cycle */
+        OC7RS = PERIOD - dutyCycle; // next duty cycle 
     }
     else if(servoNum == CH_Y)
     {
-        OC8RS = PERIOD - dutyCycle; /* Load OCRS: next pwm duty cycle */
+        OC8RS = PERIOD - dutyCycle; 
     }
 }
 
@@ -211,7 +209,7 @@ void main(){
 
     // ----------------- start: define range for x,y
     uint16_t X;
-    // invert signal
+    // Notes: servo controllers 'invert' the signal from OC8 and OC7
     uint16_t minX = 0xffff;
     uint16_t maxX = 0x0000;
 
@@ -229,10 +227,12 @@ void main(){
 	while(1){
 
         // servo X
+        // TODO: read ADC for x,y
+        
         // x val read from ADC, assume to be 100
         X = 100;
         pwmX = 2*240L*(X-minX)/(maxX-minX); // HIGH - LOW = 240
-        motor_set_duty(CHANNEL_X, Xpulse);
+        setDutyCycle(CH_X, pwmX);
         lcd_locate(0,3);
         lcd_printf("pwm for X:%d", pwmX);
 		
