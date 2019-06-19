@@ -209,18 +209,16 @@ void main(){
 
     // ----------------- start: define range for x,y
     uint16_t X;
-    // Notes: servo controllers 'invert' the signal from OC8 and OC7
-    uint16_t minX = 0xffff;
-    uint16_t maxX = 0x0000;
-
     uint16_t Y;
-    uint16_t minY = 0xffff;
+    // Notes: servo controllers 'invert' the signal from OC8 and OC7
+    // 16-bit resolution
+    uint16_t maxX = 0x0000;
+    uint16_t minX = 0xffff;
     uint16_t maxY = 0x0000;
+    uint16_t minY = 0xffff;
 
     uint16_t pwmX;
     uint16_t pwmY;
-
-    uint16_t i = 0;
 
     //  end: define range for x,y -----------------
 
@@ -228,13 +226,14 @@ void main(){
 
         // servo X
         // TODO: read ADC for x,y
-        
+
         // x val read from ADC, assume to be 100
         X = 100;
+        // duty cycle = pulse width / period 
         pwmX = 2*240L*(X-minX)/(maxX-minX); // HIGH - LOW = 240
         setDutyCycle(CH_X, pwmX);
         lcd_locate(0,3);
-        lcd_printf("pwm for X:%d", pwmX);
+        //lcd_printf("pwm X:%d", pwmX);
 		
 	}
 }
