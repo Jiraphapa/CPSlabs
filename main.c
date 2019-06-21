@@ -11,13 +11,15 @@
 
 // 4000= 20*10^-3 * 12.8*10^6 * 1/64
 #define PERIOD 4000 // timer period 20ms:
-// duty cycle = pulse width / period 
+// duty cycle = pulse width / period (100% duty cycle = 4000)
+// Notes: servo controllers 'invert' the signal from OC8 and OC7
+
 // 0.9ms = 0 degree
-#define ZERO (0.955*PERIOD)
+#define ZERO PERIOD - ((0.9*PERIOD)/20)
 // 1.5ms = 90 degree
-#define NINETY (0.925*PERIOD)
+#define NINETY PERIOD - ((1.5*PERIOD)/20)
 // 2.1ms = 180 degree
-#define ONEEIGHTY (0.895*PERIOD)
+#define ONEEIGHTY PERIOD - ((2.1*PERIOD)/20)
 
 #define CH_X 0
 #define CH_Y 1
@@ -217,8 +219,8 @@ void main(){
     uint16_t maxY = 0x0000;
     uint16_t minY = 0xffff;
 
-    uint16_t pwmX;
-    uint16_t pwmY;
+    uint16_t pwX;
+    uint16_t pwY;
 
     //  end: define range for x,y -----------------
 
@@ -229,11 +231,11 @@ void main(){
 
         // x val read from ADC, assume to be 100
         X = 100;
-        // duty cycle = pulse width / period 
-        pwmX = 2*240L*(X-minX)/(maxX-minX); // HIGH - LOW = 240
-        setDutyCycle(CH_X, pwmX);
-        lcd_locate(0,3);
-        //lcd_printf("pwm X:%d", pwmX);
+        // V_digital =  Range * (V_analog - V_min) / (V_max - V_min) 
+        // Range = 3820-2580 = 240
+        pwX = 2*240L*(X-minX)/(maxX-minX); 
+        setDutyCycle(CH_X, pwX);
+
 		
 	}
 }
