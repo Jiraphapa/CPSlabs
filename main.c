@@ -11,15 +11,13 @@
 
 // 4000= 20*10^-3 * 12.8*10^6 * 1/64
 #define PERIOD 4000 // timer period 20ms:
-// duty cycle = pulse width / period (100% duty cycle = 4000)
-// Notes: servo controllers 'invert' the signal from OC8 and OC7
-
+// duty cycle = pulse width / period 
 // 0.9ms = 0 degree
-#define ZERO PERIOD - ((0.9*PERIOD)/20)
+#define ZERO (0.955*PERIOD)
 // 1.5ms = 90 degree
-#define NINETY PERIOD - ((1.5*PERIOD)/20)
+#define NINETY (0.925*PERIOD)
 // 2.1ms = 180 degree
-#define ONEEIGHTY PERIOD - ((2.1*PERIOD)/20)
+#define ONEEIGHTY (0.895*PERIOD)
 
 #define CH_X 0
 #define CH_Y 1
@@ -52,6 +50,8 @@ _FGS(GCP_OFF);
 /*  set OC8 and OC7 to work in PWM mode and be controlled by Timer 2
 command x and y of servo are connected to OC8 and OC7
 OC8,OC8 pin will be set to high for ... ms every 20ms. */
+
+
 
 void setupServo(uint8_t servoNum)
 {
@@ -110,6 +110,11 @@ void initTouchScreen()
     CLEARBIT(PORTEbits.RE1);
     CLEARBIT(PORTEbits.RE2);
     CLEARBIT(PORTEbits.RE3);
+    
+    
+    SETBIT(PORTEbits.RE1);
+    SETBIT(PORTEbits.RE2);
+    CLEARBIT(PORTEbits.RE3);
 }
 
 void touchModeX()
@@ -126,69 +131,67 @@ void touchModeY()
     CLEARBIT(PORTEbits.RE3);
 }
 
-void touchModeStandby()
-{
-    SETBIT(PORTEbits.RE1);
-    SETBIT(PORTEbits.RE2);
-    CLEARBIT(PORTEbits.RE3);
-}
+void initADC(){
 
-void initADC()
-{
-    CLEARBIT(AD1CON1bits.ADON); //disable ADC
+    // 0. Disable ADC1
+    CLEARBIT(AD1CON1bits.ADON);
 
-    SETBIT(TRISEbits.TRISE8); //set TRISE AN9 to input
-    CLEARBIT(AD1PCFGLbits.PCFG15);
+    // 1. set input pins
+    SETBIT(TRISBbits.TRISB15); // set input. AN15
+    SETBIT(TRISBbits.TRISB9); // set input. AN9
 
-    CLEARBIT(AD1CON1bits.AD12B);
-    AD1CON1bits.FORM = 0;   //set integer output
-    AD1CON1bits.SSRC = 0x7; //automatic conversion
+    // 2. set analog pins
+    CLEARBIT(AD1PCFGLbits.PCFG15); // set analog. X is hardwired to AN15
+    CLEARBIT(AD1PCFGLbits.PCFG9); // set analog. Y is hardwired to AN9
 
-    AD1CON2 = 0; //no scan sampling
+    // 3. Configure AD1CON1
+    SETBIT(AD1CON1bits.AD12B); // set 12-bit mode
+    AD1CON1bits.FORM = 0; // set integer output
+    AD1CON1bits.SSRC = 0x7; // set automatic conversion
 
+    // 4. Configure AD1CON2
+    AD1CON2 = 0; // not using scanning sampling
+
+    // 5. Configure AD1CON3
     CLEARBIT(AD1CON3bits.ADRC); // internal clock source
-    AD1CON3bits.SAMC = 0x1F;    //sample to conversion clock = 31 tad
-    AD1CON3bits.ADCS = 0x2;
+    AD1CON3bits.SAMC = 0x1F; // sample-to-conversion clock = 31Tad
+    AD1CON3bits.ADCS = 0x2; // Tad = 3Tcy (Time cycles)
 
-    SETBIT(AD1CON1bits.ADON); //enable ADC
+    // 6. Enable ADC1
+    SETBIT(AD1CON1bits.ADON);
 }
 
-void initADC2()
-{
-    CLEARBIT(AD2CON1bits.ADON); //disable ADC
+uint16_t readADC(){
+    SETBIT(AD1CON1bits.SAMP); // start to sample
+    while(!AD1CON1bits.DONE); // wait for conversion to finish
+    CLEARBIT(AD1CON1bits.DONE); // MUST HAVE! clear conversion done bit
 
-    SETBIT(TRISEbits.TRISE8); //set TRISE AN9 to input
-    CLEARBIT(AD2PCFGLbits.PCFG9);
-
-    CLEARBIT(AD2CON1bits.AD12B);
-    AD2CON1bits.FORM = 0;   //set integer output
-    AD2CON1bits.SSRC = 0x7; //automatic conversion
-
-    AD1CON2 = 0; //no scan sampling
-
-    CLEARBIT(AD2CON3bits.ADRC); // internal clock source
-    AD2CON3bits.SAMC = 0x1F;    //sample to conversion clock = 31 tad
-    AD2CON3bits.ADCS = 0x2;
-
-    SETBIT(AD2CON1bits.ADON); //enable ADC
-}
-
-void readADC()
-{
-    AD1CHS0bits.CH0SA = 0x014;
-    SETBIT(AD1CON1bits.SAMP);
-    while (!AD1CON1bits.DONE);
-    CLEARBIT(AD1CON1bits.DONE);
     return ADC1BUF0;
 }
 
-void readADC2()
-{
-    AD2CHS0bits.CH0SA = 0x014;
-    SETBIT(AD2CON1bits.SAMP);
-    while (!AD2CON1bits.DONE);
-    CLEARBIT(AD2CON1bits.DONE);
-    return ADC1BUF0;
+void setDirectionADC(int direction){
+    if (direction == 0)
+        AD1CHS0bits.CH0SA = 0x000F;
+    else
+        AD1CHS0bits.CH0SA = 0x0009;
+}
+
+void setTouchMode(int direction){
+    if (direction == 0){
+        CLEARBIT(PORTEbits.RE1);
+        SETBIT(PORTEbits.RE2);
+        SETBIT(PORTEbits.RE3);
+    }
+    else{
+        SETBIT(PORTEbits.RE1); 
+        CLEARBIT(PORTEbits.RE2);
+        CLEARBIT(PORTEbits.RE3);
+
+    }
+    setDirectionADC(direction);
+     __delay_ms(10);
+        
+    
 }
 
 // end: Screen config
@@ -200,8 +203,6 @@ void main(){
 	__C30_UART=1;	
 	lcd_initialize();
 	lcd_clear();
-	lcd_locate(0,0);
-	lcd_printf("Hello World!");	
 	
     //TODO: ----------------- init adc -----------------
 
@@ -219,24 +220,63 @@ void main(){
     uint16_t maxY = 0x0000;
     uint16_t minY = 0xffff;
 
-    uint16_t pwX;
-    uint16_t pwY;
+    uint16_t pwmX;
+    uint16_t pwmY;
+    
+   
+    
+    lcd_locate(0,3);
 
     //  end: define range for x,y -----------------
+    initADC();
+    initTouchScreen();
+    
+    
+    
+    uint16_t NUM_SAMPLES = 5;
+    uint16_t samples[NUM_SAMPLES];
+    int i = 0;
+    float sum = 0;
 
 	while(1){
+       
 
         // servo X
         // TODO: read ADC for x,y
 
         // x val read from ADC, assume to be 100
         X = 100;
-        // V_digital =  Range * (V_analog - V_min) / (V_max - V_min) 
-        // Range = 3820-2580 = 240
-        pwX = 2*240L*(X-minX)/(maxX-minX); 
-        setDutyCycle(CH_X, pwX);
+        // duty cycle = pulse width / period 
+        //pwmX = 2*240L*(X-minX)/(maxX-minX); // HIGH - LOW = 240
+        //setDutyCycle(CH_X, pwmX);
+  
+        //lcd_printf("pwm X:%d", pwmX);
+        
+        
+        setTouchMode(0); // read x
+        
+        for (i = 0; i < NUM_SAMPLES; i++){
+            __delay_ms(2);
+            sum += readADC();
+        }
+        
+        
+        lcd_locate(0, 1);
+        lcd_printf("X: %.01f\n", (sum / NUM_SAMPLES) );
+        sum =0;
+        
+        
+        setTouchMode(1);
+        for (i = 0; i < NUM_SAMPLES; i++){
+            __delay_ms(2);
+            sum += readADC();
+        }
+        lcd_locate(0, 3);
+        lcd_printf("Y: %.01f\n", (sum / NUM_SAMPLES) );
+        sum =0;        
+                
 
+        __delay_ms(100);
 		
 	}
 }
-
