@@ -1,14 +1,6 @@
 # CPSlabs
 
-// temporary notes
-
-added:
-  -led.h
-  -led.c
-  -main v3.c
-  
-in doubt:
-  - why we need to add +i in "printf("%d", *(result + i));" ?
-  - please help check the logic for function: led_set(int port,int value); 
-        example: led_set(1,*(result + 0)); // where port is 1 and value is either 0,1 retrieve from "*(result + 0)"
+Repository for lab assignments, programming the dsPIC board with the following components:
+- Debugger: ICD 3
+- IDE: MPLAB X
 
