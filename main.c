@@ -54,8 +54,6 @@ OC8,OC8 pin will be set to high for ... ms every 20ms. */
 
 
 
-int hehe = NINETY;
-
 void setupServo(uint8_t servoNum)
 {
     //setup Timer 2
@@ -111,9 +109,9 @@ void setDutyCycle(uint8_t servoNum, uint8_t dutyCycle)
 
 void initTouchScreen()
 {
-    CLEARBIT(PORTEbits.RE1);
-    CLEARBIT(PORTEbits.RE2);
-    CLEARBIT(PORTEbits.RE3);
+    CLEARBIT(TRISEbits.TRISE1);
+    CLEARBIT(TRISEbits.TRISE2);
+    CLEARBIT(TRISEbits.TRISE3);
     
     
     SETBIT(PORTEbits.RE1);
@@ -121,19 +119,6 @@ void initTouchScreen()
     CLEARBIT(PORTEbits.RE3);
 }
 
-void touchModeX()
-{
-    CLEARBIT(PORTEbits.RE1);
-    SETBIT(PORTEbits.RE2);
-    SETBIT(PORTEbits.RE3);
-}
-
-void touchModeY()
-{
-    SETBIT(PORTEbits.RE1);
-    CLEARBIT(PORTEbits.RE2);
-    CLEARBIT(PORTEbits.RE3);
-}
 
 void initADC(){
 
@@ -185,15 +170,20 @@ void setTouchMode(int direction){
         CLEARBIT(PORTEbits.RE1);
         SETBIT(PORTEbits.RE2);
         SETBIT(PORTEbits.RE3);
+        AD1CHS0bits.CH0SA = 0x000F;
+        __delay_ms(10);
     }
     else{
         SETBIT(PORTEbits.RE1); 
         CLEARBIT(PORTEbits.RE2);
         CLEARBIT(PORTEbits.RE3);
+        
+        AD1CHS0bits.CH0SA = 0x0009;
+        __delay_ms(10);
 
     }
-    setDirectionADC(direction);
-     __delay_ms(10);
+
+     
         
     
 }
@@ -227,11 +217,13 @@ uint16_t count = 0;
 int i = 0;
 int commandX[4] = {ZERO,ONEEIGHTY,ONEEIGHTY,ZERO };
 int commandY[4] = {ZERO,ZERO, ONEEIGHTY, ONEEIGHTY};
+
 void __attribute__((interrupt)) _T3Interrupt (void) {
     
     
     if(count == 5){
         count = 0;
+        
         setDutyCycle(CH_X, commandX[i] - 10 );
         setDutyCycle(CH_Y, commandY[i] - 10 );
         i++;
@@ -239,30 +231,30 @@ void __attribute__((interrupt)) _T3Interrupt (void) {
             i =0;
         }
         
-        setTouchMode(0); // read x
+         setTouchMode(0); // read x
         
         for (j = 0; j < NUM_SAMPLES; j++){
             __delay_ms(2);
-            sum += readADC();
+            sum = readADC();
         }
         
-        
         lcd_locate(0, 1);
-        lcd_printf("X: %.01f\n", (sum / NUM_SAMPLES) );
+        lcd_printf("X: %.01f\n", sum );
         sum =0;
         
         
         setTouchMode(1);
         for (j = 0; j < NUM_SAMPLES; j++){
             __delay_ms(2);
-            sum += readADC();
+            sum = readADC();
         }
         lcd_locate(0, 3);
-        lcd_printf("Y: %.01f\n", (sum / NUM_SAMPLES) );
+        lcd_printf("Y: %.01f\n", sum );
         sum =0; 
     }
     count++;  
      
+    
     
 
     IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
@@ -287,24 +279,11 @@ void main(){
     setupServo(CH_Y); 
     
     initTimer3();
-    
-    
    
-    
       
 
 	while(1){
-
         //ZERO = 45 NINETY = 75 ONEEIGHTY = 105
- 
-  
-        
-        
-               
-                
-
-    
-         
 		
 	}
 }
