@@ -10,14 +10,15 @@
 // start: Servo configurtaion macros
 
 // 4000= 20*10^-3 * 12.8*10^6 * 1/64
-#define PERIOD 4000 // timer period 20ms:
+// 1000= 20*10^-3 * 12.8*10^6 * 1/256
+#define PERIOD 1000 // timer period 20ms:
 // duty cycle = pulse width / period 
 // 0.9ms = 0 degree
-#define ZERO (0.955*PERIOD)
+#define ZERO (0.9*PERIOD)/20
 // 1.5ms = 90 degree
-#define NINETY (0.925*PERIOD)
+#define NINETY (1.5*PERIOD)/20
 // 2.1ms = 180 degree
-#define ONEEIGHTY (0.895*PERIOD)
+#define ONEEIGHTY (2.1*PERIOD)/20
 
 #define CH_X 0
 #define CH_Y 1
@@ -60,7 +61,7 @@ void setupServo(uint8_t servoNum)
     CLEARBIT(T2CONbits.TCS); // Select internal instruction cycle clock
     CLEARBIT(T2CONbits.TGATE); // Disable Gated Timer mode
     TMR2 = 0x00; // Clear timer register
-    T2CONbits.TCKPS = 0b10; // Select 1:64 Prescaler
+    T2CONbits.TCKPS = 0b11; // Select 1:64 Prescaler
     CLEARBIT(IFS0bits.T2IF); // Clear Timer2 interrupt status flag
     CLEARBIT(IEC0bits.T2IE); // Disable Timer2 interrupt enable control bit
     PR2 = PERIOD; // Set timer period 20ms:
@@ -206,30 +207,12 @@ void main(){
 	
     //TODO: ----------------- init adc -----------------
 
-    // ----------------- init servo -----------------
-    setupServo(CH_X); 
-    setupServo(CH_Y); 
-
-    // ----------------- start: define range for x,y
-    uint16_t X;
-    uint16_t Y;
-    // Notes: servo controllers 'invert' the signal from OC8 and OC7
-    // 16-bit resolution
-    uint16_t maxX = 0x0000;
-    uint16_t minX = 0xffff;
-    uint16_t maxY = 0x0000;
-    uint16_t minY = 0xffff;
-
-    uint16_t pwmX;
-    uint16_t pwmY;
-    
-   
-    
-    lcd_locate(0,3);
-
-    //  end: define range for x,y -----------------
     initADC();
     initTouchScreen();
+    
+     // ----------------- init servo -----------------
+    setupServo(CH_X); 
+    setupServo(CH_Y); 
     
     
     
@@ -239,19 +222,13 @@ void main(){
     float sum = 0;
 
 	while(1){
-       
 
-        // servo X
-        // TODO: read ADC for x,y
-
-        // x val read from ADC, assume to be 100
-        X = 100;
-        // duty cycle = pulse width / period 
-        //pwmX = 2*240L*(X-minX)/(maxX-minX); // HIGH - LOW = 240
-        //setDutyCycle(CH_X, pwmX);
-  
-        //lcd_printf("pwm X:%d", pwmX);
+        //ZERO = 45 NINETY = 75 ONEEIGHTY = 105
+        setDutyCycle(CH_Y, ZERO - 10 ); 
+        setDutyCycle(CH_X, NINETY - 10 );
         
+  
+        /*
         
         setTouchMode(0); // read x
         
@@ -277,6 +254,7 @@ void main(){
                 
 
         __delay_ms(100);
+         */
 		
 	}
 }
