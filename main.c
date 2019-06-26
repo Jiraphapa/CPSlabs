@@ -54,6 +54,8 @@ OC8,OC8 pin will be set to high for ... ms every 20ms. */
 
 
 
+int hehe = NINETY;
+
 void setupServo(uint8_t servoNum)
 {
     //setup Timer 2
@@ -66,6 +68,7 @@ void setupServo(uint8_t servoNum)
     CLEARBIT(IEC0bits.T2IE); // Disable Timer2 interrupt enable control bit
     PR2 = PERIOD; // Set timer period 20ms:
    
+    
     if(servoNum == CH_X)
     {
         //setup OC7
@@ -198,6 +201,75 @@ void setTouchMode(int direction){
 // end: Screen config
 
 
+void initTimer3(){
+
+        CLEARBIT(T3CONbits.TON); // Disable Timer
+         // Notes: the system clock operates at 12.8Mhz
+        CLEARBIT(T3CONbits.TCS); // Select internal instruction cycle clock
+        CLEARBIT(T3CONbits.TGATE); // Disable Gated Timer mode
+        TMR3 = 0x00; // Clear timer register
+        T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
+        // Notes: (period * prescale) / clock freq. = actual time in second
+        // (25000 * 256) / 12800000 = 0,500
+        PR3 = 50000; // Load the period value
+        IPC2bits.T3IP = 0x02; // Set Timer3 Interrupt Priority Level
+        CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
+        SETBIT(IEC0bits.T3IE); // Enable Timer3 interrupt
+        SETBIT(T3CONbits.TON); // Start Timer
+        
+}
+
+uint16_t NUM_SAMPLES = 5;
+uint16_t samples[5];
+int j = 0;
+float sum = 0;
+uint16_t count = 0;
+int i = 0;
+int commandX[4] = {ZERO,ONEEIGHTY,ONEEIGHTY,ZERO };
+int commandY[4] = {ZERO,ZERO, ONEEIGHTY, ONEEIGHTY};
+void __attribute__((interrupt)) _T3Interrupt (void) {
+    
+    
+    if(count == 5){
+        count = 0;
+        setDutyCycle(CH_X, commandX[i] - 10 );
+        setDutyCycle(CH_Y, commandY[i] - 10 );
+        i++;
+        if (i == 4){
+            i =0;
+        }
+        
+        setTouchMode(0); // read x
+        
+        for (j = 0; j < NUM_SAMPLES; j++){
+            __delay_ms(2);
+            sum += readADC();
+        }
+        
+        
+        lcd_locate(0, 1);
+        lcd_printf("X: %.01f\n", (sum / NUM_SAMPLES) );
+        sum =0;
+        
+        
+        setTouchMode(1);
+        for (j = 0; j < NUM_SAMPLES; j++){
+            __delay_ms(2);
+            sum += readADC();
+        }
+        lcd_locate(0, 3);
+        lcd_printf("Y: %.01f\n", (sum / NUM_SAMPLES) );
+        sum =0; 
+    }
+    count++;  
+     
+    
+
+    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
+        
+   
+}
+
 
 void main(){
 	//Init LCD
@@ -214,47 +286,25 @@ void main(){
     setupServo(CH_X); 
     setupServo(CH_Y); 
     
+    initTimer3();
     
     
-    uint16_t NUM_SAMPLES = 5;
-    uint16_t samples[NUM_SAMPLES];
-    int i = 0;
-    float sum = 0;
+   
+    
+      
 
 	while(1){
 
         //ZERO = 45 NINETY = 75 ONEEIGHTY = 105
-        setDutyCycle(CH_Y, ZERO - 10 ); 
-        setDutyCycle(CH_X, NINETY - 10 );
-        
+ 
   
-        /*
-        
-        setTouchMode(0); // read x
-        
-        for (i = 0; i < NUM_SAMPLES; i++){
-            __delay_ms(2);
-            sum += readADC();
-        }
         
         
-        lcd_locate(0, 1);
-        lcd_printf("X: %.01f\n", (sum / NUM_SAMPLES) );
-        sum =0;
-        
-        
-        setTouchMode(1);
-        for (i = 0; i < NUM_SAMPLES; i++){
-            __delay_ms(2);
-            sum += readADC();
-        }
-        lcd_locate(0, 3);
-        lcd_printf("Y: %.01f\n", (sum / NUM_SAMPLES) );
-        sum =0;        
+               
                 
 
-        __delay_ms(100);
-         */
+    
+         
 		
 	}
 }
