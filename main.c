@@ -70,7 +70,7 @@ float getAlpha(float cutofFreq){
 }
 
 
-//LPF: Y(n) = (1-ﬂ)*Y(n-1) + (ﬂ*X(n))) = Y(n-1) - (ﬂ*(Y(n-1)-X(n)));
+//LPF: Y(n) = (1-ß)*Y(n-1) + (ß*X(n))) = Y(n-1) - (ß*(Y(n-1)-X(n)));
 //cut off freq at 60Hz
 void lowPass(int input){
     filtered = filtered - (getAlpha(60) * (filtered - input));
@@ -78,18 +78,27 @@ void lowPass(int input){
 
 
 // gain values
-double kp = 0.2;
-double ki = 0.01;
-double kd = 0.02;
+double kpX = 0.2;
+double kiX = 0.01;
+double kdX = 0.02;
 
-double setPoint;
+double kpY = 0.2;
+double kiY = 0.01;
+double kdY = 0.02;
+
+double setPointX;
+double setPointY;
 
 //unsigned long currentTime = 0, previousTime;
 double elapsedTime;
-double error;
-double lastError;
-double input, output, setPoint;
-double cumError, rateError;
+
+double errorX;
+double errorY;
+
+double lastErrorX,lastErrorY;
+double cumErrorX, rateErrorX;
+
+double cumErrorY, rateErrorY;
 
 int touchDirection = 0;
 
@@ -108,41 +117,90 @@ int readRaw(int direction){
 
 float readFiltered(int direction){
     int value = readRaw(direction);
-    lowPass(value);
-    return filtered;
+    int i = 0;
+    int sum =0;
+    for (i =0; i<5; i++){
+         lowPass(value);
+         sum += filtered;
+    }
+    return sum / 5;
 }
 
 
-void setupPID(){
-        setPoint = 1700;                          
+void setupPID(uint8_t servoNum){
+    
+      if(servoNum == CH_X)
+    {
+        setPointX = 1700;                          
         
-        error = 0.0f;
-        lastError =  1000.0f;  // TODO: get actual last error
-        elapsedTime = 0.05;    // TODO: get actual elapsed time
+        errorX = 0.0f;
+        lastErrorX =  1000.0f;  // TODO: get actual last error
+     
+      }
+      
+      else   if(servoNum == CH_Y)
+    {
+        setPointY = 1700;                          
+        
+        errorY = 0.0f;
+        lastErrorY =  1000.0f;  // TODO: get actual last error
+     
+      }
+      
+         elapsedTime = 0.05;    // TODO: get actual elapsed time
 }    
 
  
-double computePID(double inp){
+double computePID(uint8_t servoNum, double inp){
+    
+    if(servoNum == CH_X)
+    {
        
-       error = setPoint - inp;   
+       errorX = setPointX - inp;   
        
-       if(abs(error - lastError)  > 600)
-           error = lastError;
+       if(abs(errorX - lastErrorX)  > 600)
+           errorX = lastErrorX;
        
        //  feedback
                    
-       cumError += error * elapsedTime;                // compute integral
-       rateError = (error - lastError)/elapsedTime;   // compute derivative
+       cumErrorX += errorX * elapsedTime;                // compute integral
+       rateErrorX = (errorX - lastErrorX)/elapsedTime;   // compute derivative
  
-       double out = kp*error + ki*cumError + kd*rateError;                //PID output               
+       double outX = kpX*errorX + kiX*cumErrorX + kdX*rateErrorX;                //PID output               
  
-       lastError = error;                                //remember current error
-       error = 0;
-       cumError = 0;
-       rateError = 0;
+       lastErrorX = errorX;                                //remember current error
+       errorX = 0;
+       cumErrorX = 0;
+       rateErrorX = 0;
        
-       return abs(out);                                        //have function return the PID output
+       return abs(outX);                                        //have function return the PID output
+    }
+    
+    else if(servoNum == CH_Y)
+    {
+       
+       errorY = setPointY - inp;   
+       
+       if(abs(errorY - lastErrorY)  > 600)
+           errorY = lastErrorY;
+       
+       //  feedback
+                   
+       cumErrorY += errorY * elapsedTime;                // compute integral
+       rateErrorY = (errorY - lastErrorY)/elapsedTime;   // compute derivative
+ 
+       double outY = kpY*errorY + kiY*cumErrorY + kdY*rateErrorY;                //PID output               
+ 
+       lastErrorY = errorY;                                //remember current error
+       errorY = 0;
+       cumErrorY = 0;
+       rateErrorY = 0;
+       
+       return abs(outY);                                        //have function return the PID output
+    }
 }
+
+int temp=0;
 
 // 20 ms
 void __attribute__((interrupt)) _T3Interrupt (void) {
@@ -150,16 +208,19 @@ void __attribute__((interrupt)) _T3Interrupt (void) {
      // TODO: check deadline
     
     float value = readFiltered(touchDirection);
-    int duty =  computePID(value);
+    int duty =  computePID(CH_X,value);
     
     float valuey = readFiltered(1);
-    int dutyy =  computePID(valuey);
+    int dutyy =  computePID(CH_Y,valuey);
     
-  // setDutyCycle(CH_X, dutyy); 
+  setDutyCycle(CH_X, dutyy); 
    setDutyCycle(CH_Y, duty); 
     
-    lcd_locate(0,5);
-    lcd_printf("%d", duty);
+   if(temp % 2 == 0)
+   { lcd_locate(0,5);
+    lcd_printf("%d", duty);}
+   
+  
     
     IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag   
    
@@ -183,7 +244,8 @@ void main(){
     
     
     initTimer3();
-    setupPID();
+    setupPID(CH_X);
+      setupPID(CH_Y);
    
 
 	while(1){
