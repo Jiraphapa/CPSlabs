@@ -2,7 +2,6 @@
 //do not change the order of the following 3 definitions
 #define FCY 12800000UL 
 #include <stdio.h>
-#include <stdlib.h>
 #include <libpic30.h>
 
 #include "lcd.h"
@@ -14,7 +13,7 @@
 
 #include <time.h>
 
-
+#include <stdlib.h>
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -45,7 +44,6 @@ void initTimer3(){
         CLEARBIT(T3CONbits.TGATE); // Disable Gated Timer mode
         TMR3 = 0x00; // Clear timer register
         T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
-        // Notes: (period * prescale) / clock freq. = actual time in second
         // (25000 * 256) / 12800000 = 0,500    // 500 ms
         // (10000 * 256) / 12800000 = 0,020    // 20 ms
         // 20 ms
@@ -56,6 +54,19 @@ void initTimer3(){
         SETBIT(T3CONbits.TON); // Start Timer
         
 }
+
+uint16_t NUM_SAMPLES = 5;
+uint16_t samples[5];
+int j = 0;
+float sum = 0;
+uint16_t count = 0;
+int i = 0;
+int commandX[4] = {ZERO,ONEEIGHTY,ONEEIGHTY,ZERO };
+int commandY[4] = {ZERO,ZERO, ONEEIGHTY, ONEEIGHTY};
+
+/////////////////////////////      PID stuffs    ///////////////////////////////
+
+
 
 
 float filtered;
@@ -70,7 +81,7 @@ float getAlpha(float cutofFreq){
 }
 
 
-//LPF: Y(n) = (1-ß)*Y(n-1) + (ß*X(n))) = Y(n-1) - (ß*(Y(n-1)-X(n)));
+//LPF: Y(n) = (1-ﬂ)*Y(n-1) + (ﬂ*X(n))) = Y(n-1) - (ﬂ*(Y(n-1)-X(n)));
 //cut off freq at 60Hz
 void lowPass(int input){
     filtered = filtered - (getAlpha(60) * (filtered - input));
@@ -78,27 +89,21 @@ void lowPass(int input){
 
 
 // gain values
-double kpX = 0.2;
-double kiX = 0.01;
-double kdX = 0.02;
+double kp = 0.1;
+double ki = 0.3;
+double kd = 0.05;
 
-double kpY = 0.2;
-double kiY = 0.01;
-double kdY = 0.02;
+
+int countt = 0;
 
 double setPointX;
 double setPointY;
 
 //unsigned long currentTime = 0, previousTime;
 double elapsedTime;
-
-double errorX;
-double errorY;
-
-double lastErrorX,lastErrorY;
-double cumErrorX, rateErrorX;
-
-double cumErrorY, rateErrorY;
+double error;
+double lastError;
+double cumError, rateError;
 
 int touchDirection = 0;
 
@@ -111,119 +116,141 @@ int readRaw(int direction){
     __delay_ms(10);
     int data = readADC();
     //touchDirection = !touchDirection;
-    
+
     return data;
 }
 
 float readFiltered(int direction){
     int value = readRaw(direction);
-    int i = 0;
-    int sum =0;
-    for (i =0; i<5; i++){
-         lowPass(value);
-         sum += filtered;
-    }
-    return sum / 5;
+    lowPass(value);
+    return filtered;
 }
 
 
-void setupPID(uint8_t servoNum){
-    
-      if(servoNum == CH_X)
-    {
-        setPointX = 1700;                          
+void setupPID(){
+        setPointX = 1400 + 550; // 920, 550 IS A MAGIC U KNOW?                          
+        setPointY = 2202;   
         
-        errorX = 0.0f;
-        lastErrorX =  1000.0f;  // TODO: get actual last error
-     
-      }
-      
-      else   if(servoNum == CH_Y)
-    {
-        setPointY = 1700;                          
-        
-        errorY = 0.0f;
-        lastErrorY =  1000.0f;  // TODO: get actual last error
-     
-      }
-      
-         elapsedTime = 0.05;    // TODO: get actual elapsed time
+        error = 0.0f;
+        //lastError =  2493.0f-1400;  // TODO: get actual last error
+        elapsedTime = 0.20;    // TODO: get actual elapsed time
 }    
 
- 
-double computePID(uint8_t servoNum, double inp){
-    
-    if(servoNum == CH_X)
-    {
+
+double computePID(double inp, uint8_t servoNum){
+        if(servoNum == CH_X){
+        error = setPointX - inp;   
+       }
+        else if(servoNum == CH_Y){
+        error = setPointY - inp;   
+       }
+
+
+        //     if(abs(error - lastError)  > 600)
+        //    error = lastError;
+
+        //  feedback
+
+       cumError += error * elapsedTime;                // compute integral
+       rateError = (error - lastError)/elapsedTime;   // compute derivative
+
+       double out = kp*error + ki*cumError + kd*rateError;                //PID output               
+
+       lastError = error;                                //remember current error
+       error = 0;
+       cumError = 0;
+       rateError = 0;
        
-       errorX = setPointX - inp;   
-       
-       if(abs(errorX - lastErrorX)  > 600)
-           errorX = lastErrorX;
-       
-       //  feedback
-                   
-       cumErrorX += errorX * elapsedTime;                // compute integral
-       rateErrorX = (errorX - lastErrorX)/elapsedTime;   // compute derivative
- 
-       double outX = kpX*errorX + kiX*cumErrorX + kdX*rateErrorX;                //PID output               
- 
-       lastErrorX = errorX;                                //remember current error
-       errorX = 0;
-       cumErrorX = 0;
-       rateErrorX = 0;
-       
-       return abs(outX);                                        //have function return the PID output
-    }
-    
-    else if(servoNum == CH_Y)
-    {
-       
-       errorY = setPointY - inp;   
-       
-       if(abs(errorY - lastErrorY)  > 600)
-           errorY = lastErrorY;
-       
-       //  feedback
-                   
-       cumErrorY += errorY * elapsedTime;                // compute integral
-       rateErrorY = (errorY - lastErrorY)/elapsedTime;   // compute derivative
- 
-       double outY = kpY*errorY + kiY*cumErrorY + kdY*rateErrorY;                //PID output               
- 
-       lastErrorY = errorY;                                //remember current error
-       errorY = 0;
-       cumErrorY = 0;
-       rateErrorY = 0;
-       
-       return abs(outY);                                        //have function return the PID output
-    }
+       int returnVal = abs(out); // 2 servo should apply same number huhu ö.ö
+       if (returnVal > 73)
+           returnVal = 73;
+       if (returnVal < 68)
+           returnVal = 68;
+       return returnVal;                                        //have function return the PID output
 }
 
-int temp=0;
+float readLowPass(int direction){
+    setTouchMode(direction);
+    int init = readADC();
+    int data[4] = { init, init, init, init};
+    float a[5] = {1.00, 0.7821, 0.6800, 0.1827, 0.0301};
+    float b[5] = {0.1672, 0.6687, 1.0031, 0.6687, 0.1672};
+    float y[4] = {init,init,init,init};
+    float x[5] = {init,init,init,init,init};
+    
+    int i = 0;
+    int j = 0;
+    int output;
+    int bSide;
+    int aSide = 0;
+    for (i = 0; i< 5; i++){
+        //butter (4, 30/50)
+        
+        x[i] = readADC();
+        //calculate b side
+        bSide += b[i] * x[i];
+        
+        if (i > 0){
+            aSide += a[i] + y[i-1];
+        }
+        y[i] = bSide - aSide;
+       
+    }
 
-// 20 ms
+    float temp;
+    float temp2;
+    for(i = 0; i < 4; i++){
+        if (i == 0){
+            temp = y[i];
+            y[i] = bSide - aSide;
+        }
+        
+        else{
+            temp2 = y[i];
+            y[i] = temp;
+            temp = temp2;
+        }
+    }
+    
+    
+    return y[3];
+    
+}
+
+////////////////////////////// end:  PID stuffs //////////////////////////////
+
 void __attribute__((interrupt)) _T3Interrupt (void) {
     
-     // TODO: check deadline
-    
-    float value = readFiltered(touchDirection);
-    int duty =  computePID(CH_X,value);
-    
-    float valuey = readFiltered(1);
-    int dutyy =  computePID(CH_Y,valuey);
-    
-  setDutyCycle(CH_X, dutyy); 
-   setDutyCycle(CH_Y, duty); 
-    
-   if(temp % 2 == 0)
-   { lcd_locate(0,5);
-    lcd_printf("%d", duty);}
    
-  
     
-    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag   
-   
+    ///////////////////////  PID tasks
+    
+    
+    float value = readLowPass(1);
+    int duty =  computePID(value, CH_X);
+
+  //  float valuey = readLowPass(0);
+   // int dutyy =  computePID(valuey, CH_Y);
+
+    setDutyCycle(CH_X, duty); 
+    //setDutyCycle(CH_Y, duty); 
+
+    // lcd_locate(0,5);
+    // lcd_printf("%d", duty);
+    
+    if(countt % 10 == 0){
+        
+      lcd_locate(0,2);
+      lcd_printf("%d", duty);
+      
+      lcd_locate(0,4);
+      lcd_printf("%.02f", value);
+    }
+    countt++; 
+
+    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag    
+     
+     
 }
 
 
@@ -242,67 +269,26 @@ void main(){
     setupServo(CH_X); 
     setupServo(CH_Y); 
     
-    
     initTimer3();
-    setupPID(CH_X);
-      setupPID(CH_Y);
+    
+    // --------- PID tasks
+    
+    
+     setupPID();
+    
+    /*
+      float value = readFiltered(touchDirection);
+      lcd_locate(0,2);
+      lcd_printf("%.02f", value);
+     * */
+      
+      
    
+     
+      
 
 	while(1){
         //ZERO = 45 NINETY = 75 ONEEIGHTY = 105
-      
-        float value = readFiltered(touchDirection);
-        lcd_locate(0,2);
-        lcd_printf("%.02f", value);
-        __delay_ms(500);
-        
-        //read from rotary encoder connected to A0
-  
+		
 	}
 }
-
-
-
-/* PID example AR DU AI NO
- 
- //PID constants
-double kp = 2
-double ki = 5
-double kd = 1
- 
-unsigned long currentTime, previousTime;
-double elapsedTime;
-double error;
-double lastError;
-double input, output, setPoint;
-double cumError, rateError;
- 
-void setup(){
-        setPoint = 0;                          //set point at zero degrees
-}    
- 
-void loop(){
-        input = analogRead(A0);                //read from rotary encoder connected to A0
-        output = computePID(input);
-        delay(100);
-        analogWrite(3, output);                //control the motor based on PID value
- 
-}
- 
-double computePID(double inp){     
-        currentTime = millis();                //get current time
-        elapsedTime = (double)(currentTime - previousTime);        //compute time elapsed from previous computation
-        
-        error = Setpoint - inp;                                // determine error
-        cumError += error * elapsedTime;                // compute integral
-        rateError = (error - lastError)/elapsedTime;   // compute derivative
- 
-        double out = kp*error + ki*cumError + kd*rateError;                //PID output               
- 
-        lastError = error;                                //remember current error
-        previousTime = currentTime;                        //remember current time
- 
-        return out;                                        //have function return the PID output
-}
- 
- */
