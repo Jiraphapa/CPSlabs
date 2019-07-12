@@ -113,6 +113,8 @@ double kd = 0.02;
 
 
 
+
+
 double setPointX;
 double setPointY;
 
@@ -123,8 +125,13 @@ double lastError;
 double cumError, rateError;
 
 void setupPID(){
-        setPointX = 2500.0f + 350;            
-        setPointY = 2000.0f;   
+    // before COS wave
+       // setPointX = 2500.0f + 350;            
+       /// setPointY = 2270.0f+300;   
+       // setPointY = 2270.0f+250;   
+    // after COS wave
+         setPointX = 2755;
+         setPointY = 2290;
         
         cumError = 0.0f;
         rateError = 0.0f;
@@ -135,16 +142,29 @@ void setupPID(){
         elapsedTime = 0.05;    // TODO: get actual elapsed time
 }    
 
+int magic = 0;
 double computePID(double inp, uint8_t servoNum){
+    
+    float threshold = 1600;
     
      if(servoNum == CH_X){
         error = setPointX - inp;   
+        kp = 0.25;
+        ki = 0.000001;
+        kd = 0.02;
+        magic = 0;
+        
     }
         else if(servoNum == CH_Y){
-        error = setPointY - inp;   
+        error = setPointY - inp; 
+        kp = 0.6;
+        ki = 0.1;
+        kd = 0.3;
+        
+         magic = 20;
        }
         
-       float threshold = 1500;
+       
        if(abs(error) > threshold)
             error = lastError;
        
@@ -158,16 +178,21 @@ double computePID(double inp, uint8_t servoNum){
        cumError = 0.0f;
        rateError = 0.0f;
        
-       // duty trim
+       double result = abs(out);
        
-       return abs(out);                                        //have function return the PID output
+       // duty trim
+
+       
+       return result - magic;                                        //have function return the PID output
 }
 
-
+  int dutyX;
 void __attribute__((interrupt)) _T3Interrupt (void) {
     
-    int dutyX = computePID(posX, CH_X);
-    setDutyCycle(CH_X, dutyX);
+  dutyX = computePID(posX, CH_X);
+   int dutyY = computePID(posY, CH_Y);
+    //setDutyCycle(CH_X, dutyX);
+    setDutyCycle(CH_Y, dutyY);
     
     IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
         
@@ -208,6 +233,8 @@ void main(){
         if (printCount == 10){
             lcd_locate(0,3);
             lcd_printf("%d", posX);
+            lcd_locate(0,5);
+            lcd_printf("%d", posY);
             printCount = 0;
         }
         printCount++;
