@@ -7,13 +7,10 @@
 #include "lcd.h"
 #include "touch.h"
 #include "servo.h"
-
-
-#define SAMPLE_RATE 50
-
-#include <time.h>
-
 #include <stdlib.h>
+
+
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -34,6 +31,16 @@ _FGS(GCP_OFF);
 ///////////////////////////////////////////////////////////////////////////////
 
 
+// start: Servo configuration functions
+
+/*  set OC8 and OC7 to work in PWM mode and be controlled by Timer 2
+command x and y of servo are connected to OC8 and OC7
+OC8,OC8 pin will be set to high for ... ms every 20ms. */
+
+
+
+int posX = 0;
+int posY = 0;
 
 
 void initTimer3(){
@@ -44,9 +51,8 @@ void initTimer3(){
         CLEARBIT(T3CONbits.TGATE); // Disable Gated Timer mode
         TMR3 = 0x00; // Clear timer register
         T3CONbits.TCKPS = 0b11; // Select 1:256 Prescaler
-        // (25000 * 256) / 12800000 = 0,500    // 500 ms
-        // (10000 * 256) / 12800000 = 0,020    // 20 ms
-        // 20 ms
+        // Notes: (period * prescale) / clock freq. = actual time in second
+        // (25000 * 256) / 12800000 = 0,500
         PR3 = 1000; // Load the period value
         IPC2bits.T3IP = 0x02; // Set Timer3 Interrupt Priority Level
         CLEARBIT(IFS0bits.T3IF); // Clear Timer3 Interrupt Flag
@@ -55,122 +61,8 @@ void initTimer3(){
         
 }
 
-uint16_t NUM_SAMPLES = 5;
-uint16_t samples[5];
-int j = 0;
-float sum = 0;
-uint16_t count = 0;
-int i = 0;
-int commandX[4] = {ZERO,ONEEIGHTY,ONEEIGHTY,ZERO };
-int commandY[4] = {ZERO,ZERO, ONEEIGHTY, ONEEIGHTY};
-
-/////////////////////////////      PID stuffs    ///////////////////////////////
-
-
-
-
-float filtered;
-float constant = 1.25;
-
-float getAlpha(float cutofFreq){
-    float RC = 1.0/(cutofFreq * 2);
-    float dt = 1.0/SAMPLE_RATE;
-    float alpha = dt/(RC+dt);
-
-    return alpha;
-}
-
-
-//LPF: Y(n) = (1-ﬂ)*Y(n-1) + (ﬂ*X(n))) = Y(n-1) - (ﬂ*(Y(n-1)-X(n)));
-//cut off freq at 60Hz
-void lowPass(int input){
-    filtered = filtered - (getAlpha(60) * (filtered - input));
-}
-
-
-// gain values
-double kp = 0.1;
-double ki = 0.3;
-double kd = 0.05;
-
-
-int countt = 0;
-
-double setPointX;
-double setPointY;
-
-//unsigned long currentTime = 0, previousTime;
-double elapsedTime;
-double error;
-double lastError;
-double cumError, rateError;
-
-int touchDirection = 0;
-
-
-
-
-
-int readRaw(int direction){
-    setTouchMode(direction);
-    __delay_ms(10);
-    int data = readADC();
-    //touchDirection = !touchDirection;
-
-    return data;
-}
-
-float readFiltered(int direction){
-    int value = readRaw(direction);
-    lowPass(value);
-    return filtered;
-}
-
-
-void setupPID(){
-        setPointX = 1400 + 550; // 920, 550 IS A MAGIC U KNOW?                          
-        setPointY = 2202;   
-        
-        error = 0.0f;
-        //lastError =  2493.0f-1400;  // TODO: get actual last error
-        elapsedTime = 0.20;    // TODO: get actual elapsed time
-}    
-
-
-double computePID(double inp, uint8_t servoNum){
-        if(servoNum == CH_X){
-        error = setPointX - inp;   
-       }
-        else if(servoNum == CH_Y){
-        error = setPointY - inp;   
-       }
-
-
-        //     if(abs(error - lastError)  > 600)
-        //    error = lastError;
-
-        //  feedback
-
-       cumError += error * elapsedTime;                // compute integral
-       rateError = (error - lastError)/elapsedTime;   // compute derivative
-
-       double out = kp*error + ki*cumError + kd*rateError;                //PID output               
-
-       lastError = error;                                //remember current error
-       error = 0;
-       cumError = 0;
-       rateError = 0;
-       
-       int returnVal = abs(out); // 2 servo should apply same number huhu ö.ö
-       if (returnVal > 73)
-           returnVal = 73;
-       if (returnVal < 68)
-           returnVal = 68;
-       return returnVal;                                        //have function return the PID output
-}
 
 float readLowPass(int direction){
-    setTouchMode(direction);
     int init = readADC();
     int data[4] = { init, init, init, init};
     float a[5] = {1.00, 0.7821, 0.6800, 0.1827, 0.0301};
@@ -211,46 +103,75 @@ float readLowPass(int direction){
             temp = temp2;
         }
     }
-    
-    
     return y[3];
     
 }
 
-////////////////////////////// end:  PID stuffs //////////////////////////////
+double kp = 0.3;
+double ki = 0.1;
+double kd = 0.02;
+
+
+
+double setPointX;
+double setPointY;
+
+//unsigned long currentTime = 0, previousTime;
+double elapsedTime;
+double error;
+double lastError;
+double cumError, rateError;
+
+void setupPID(){
+        setPointX = 2500.0f + 350;            
+        setPointY = 2000.0f;   
+        
+        cumError = 0.0f;
+        rateError = 0.0f;
+
+        
+        error = 0.0f;
+        lastError =  300.0f;  // TODO: get actual last error
+        elapsedTime = 0.05;    // TODO: get actual elapsed time
+}    
+
+double computePID(double inp, uint8_t servoNum){
+    
+     if(servoNum == CH_X){
+        error = setPointX - inp;   
+    }
+        else if(servoNum == CH_Y){
+        error = setPointY - inp;   
+       }
+        
+       float threshold = 1500;
+       if(abs(error) > threshold)
+            error = lastError;
+       
+       cumError += error * elapsedTime;               
+       rateError = (error - lastError)/elapsedTime;  
+
+       double out = kp*error + ki*cumError + kd*rateError;                        
+
+       lastError = error;                             
+       error = 0.0f;
+       cumError = 0.0f;
+       rateError = 0.0f;
+       
+       // duty trim
+       
+       return abs(out);                                        //have function return the PID output
+}
+
 
 void __attribute__((interrupt)) _T3Interrupt (void) {
     
-   
+    int dutyX = computePID(posX, CH_X);
+    setDutyCycle(CH_X, dutyX);
     
-    ///////////////////////  PID tasks
-    
-    
-    float value = readLowPass(1);
-    int duty =  computePID(value, CH_X);
-
-  //  float valuey = readLowPass(0);
-   // int dutyy =  computePID(valuey, CH_Y);
-
-    setDutyCycle(CH_X, duty); 
-    //setDutyCycle(CH_Y, duty); 
-
-    // lcd_locate(0,5);
-    // lcd_printf("%d", duty);
-    
-    if(countt % 10 == 0){
+    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
         
-      lcd_locate(0,2);
-      lcd_printf("%d", duty);
-      
-      lcd_locate(0,4);
-      lcd_printf("%.02f", value);
-    }
-    countt++; 
-
-    IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag    
-     
-     
+   
 }
 
 
@@ -268,27 +189,27 @@ void main(){
      // ----------------- init servo -----------------
     setupServo(CH_X); 
     setupServo(CH_Y); 
-    
+    setupPID();
     initTimer3();
-    
-    // --------- PID tasks
-    
-    
-     setupPID();
-    
-    /*
-      float value = readFiltered(touchDirection);
-      lcd_locate(0,2);
-      lcd_printf("%.02f", value);
-     * */
-      
-      
    
-     
-      
+    int printCount = 0;
 
 	while(1){
         //ZERO = 45 NINETY = 75 ONEEIGHTY = 105
-		
+        
+        setTouchMode(1);
+        posX = readLowPass(1);
+		__delay_ms(10);  
+        
+        setTouchMode(0);
+        posY = readLowPass(0);
+        __delay_ms(10);
+        
+        if (printCount == 10){
+            lcd_locate(0,3);
+            lcd_printf("%d", posX);
+            printCount = 0;
+        }
+        printCount++;
 	}
 }
