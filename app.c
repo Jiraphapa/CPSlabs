@@ -29,6 +29,7 @@ OS_STK  AppStartTaskStk[APP_TASK_START_STK_SIZE];
 // TODO define task stacks
 OS_STK LCDDisplayTaskStk[LCD_DISPLAY_TASK_STK_SIZE];
 OS_STK TouchscreenTaskStk[TOUCHSCREEN_TASK_STK_SIZE];
+OS_STK PIDControlTaskStk[PID_CONTROL_TASK_STK_SIZE];
 
 // control setpoint
 double Xpos_set = 1520.0, Ypos_set = 1300.0; //TODO: make sure that these parameters match your touchscreen
@@ -53,6 +54,7 @@ static  void  AppTaskCreate(void);
 // TODO declare function prototypes
 static  void LCDDisplayTask(void *p_arg);
 static  void TouchscreenTask(void *p_arg);
+static  void PIDControlTask(void *p_arg);
 
 /*
 *********************************************************************************************************
@@ -110,6 +112,7 @@ static  void  AppStartTask (void *p_arg)
     OSStatInit();                                                       /* Determine CPU capacity                                   */
     DispInit();
     // initialize touchscreen and motors
+    initADC();
     initTouchScreen();
     setupServo(CH_X); 
     setupServo(CH_Y); 
@@ -157,17 +160,35 @@ static  void  AppTaskCreate (void)
                     (void *)0,
                     OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
     OSTaskNameSet(TOUCHSCREEN_TASK_PRIO, (CPU_INT08U *)"Touchscreen Task", &touch_err);
+
+    CPU_INT08U  pid_err;
+    OSTaskCreateExt(PIDControlTask,                                       /* Create the task for PID control     */
+                    (void *)0,
+                    (OS_STK *)&PIDControlTaskStk[0],
+                    PID_CONTROL_TASK_PRIO,
+                    PID_CONTROL_TASK_PRIO,
+                    (OS_STK *)&PIDControlTaskStk[PID_CONTROL_TASK_STK_SIZE-1],
+                    PID_CONTROL_TASK_STK_SIZE,
+                    (void *)0,
+                    OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
+    OSTaskNameSet(PID_CONTROL_TASK_PRIO, (CPU_INT08U *)"PID Task", &pid_err);
 }
 
-int milisecCounter;
-int secCounter;
-int minCounter;
+CPU_INT16U milisecCounter;
+CPU_INT16U secCounter;
+CPU_INT16U minCounter;
+
+CPU_INT16U namePrintCounter = 0;
 
 static  void  LCDDisplayTask (void *p_arg)
 {
+    // 1. display group number on the top line of the LCD.
     DispClrScr();
-    DispStr(1,0,"Group 4 Session 3");
-
+    if(namePrintCounter == 0){
+        DispStr(1,0,"Group 4 Session 3");
+        namePrintCounter++;
+    }
+    // 2. display the seconds since last reset on the second line of the LCD.
      if (milisecCounter == 1000){
         milisecCounter = 0;
         secCounter++;
@@ -183,12 +204,39 @@ static  void  LCDDisplayTask (void *p_arg)
     }
         
     milisecCounter++;
+    // 3.  display the ball’s X and Y position values to the LCD.
+    // 4.  Update the LED state to rotate from left to right.
     
 }
 
 static void TouchscreenTask (void *p_arg)
 {
-
+    if(select == X_DIM)
+    {
+        // TODO(@James) : (Refactor) Move readFiltered, readRaw, ...  functions to touch.h
+        // 1. Read the touchscreen for the selected dimension.
+        // Xpos = 
+        // 2. Filter the touchscreen readings using a low pass filter.
+        // Xposf = 
+        // 3. Change the selected dimension.
+         select = Y_DIM;
+    }
+    else
+    {
+        // TODO(@James) : (Refactor) Move readFiltered, readRaw, ...  functions to touch.h
+        // 1. Read the touchscreen for the selected dimension.
+        // Ypos = 
+        // 2. Filter the touchscreen readings using a low pass filter.
+        // Yposf = 
+        // 3. Change the selected dimension.
+        select = X_DIM;
+    }
+    
 }
+
+static void PIDControlTask(void *p_arg)
+{
+       // TODO(@James)  : add PID control task here
+} 
 
 
