@@ -182,13 +182,13 @@ CPU_INT16U namePrintCounter = 0;
 
 static  void  LCDDisplayTask (void *p_arg)
 {
-    // 1. display group number on the top line of the LCD.
+    // 1. (@Ploy) display group number on the top line of the LCD.
     DispClrScr();
     if(namePrintCounter == 0){
         DispStr(1,0,"Group 4 Session 3");
         namePrintCounter++;
     }
-    // 2. display the seconds since last reset on the second line of the LCD.
+    // 2. (@Ploy) display the seconds since last reset on the second line of the LCD.
      if (milisecCounter == 1000){
         milisecCounter = 0;
         secCounter++;
@@ -204,8 +204,8 @@ static  void  LCDDisplayTask (void *p_arg)
     }
         
     milisecCounter++;
-    // 3.  display the ball’s X and Y position values to the LCD.
-    // 4.  Update the LED state to rotate from left to right.
+    // 3.  (@Ploy) display the ball’s X and Y position values to the LCD.
+    // 4.  (@Ploy) Update the LED state to rotate from left to right.
     
 }
 
@@ -237,6 +237,7 @@ static void TouchscreenTask (void *p_arg)
 static void PIDControlTask(void *p_arg)
 {
        // TODO(@James)  : add PID control task here
+       // ***Notes*** review predefined macro and TODOs in other file as well 
 } 
 
 
