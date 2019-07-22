@@ -48,7 +48,9 @@
 #define  OS_PROBE_TASK_ID                       8
 #define  OS_TASK_TMR_PRIO                      10
 
+#define TOUCHSCREEN_TASK_PRIO                  20
 #define LCD_DISPLAY_TASK_PRIO                  25
+
 
 
 /*
@@ -66,6 +68,7 @@
 // TODO declare task stack size macros
 #define  OS_PROBE_TASK_STK_SIZE               160                       /* See probe_com_cfg for RS-232 commication task stack size */
 
+#define TOUCHSCREEN_TASK_STK_SIZE             80
 #define LCD_DISPLAY_TASK_STK_SIZE             80
 
 

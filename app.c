@@ -2,6 +2,8 @@
 #include <touch.c>
 #include <motor.c>
 
+#include <stdio.h>
+
 /*
 *********************************************************************************************************
 *                                                CONSTANTS
@@ -26,6 +28,7 @@
 OS_STK  AppStartTaskStk[APP_TASK_START_STK_SIZE];
 // TODO define task stacks
 OS_STK LCDDisplayTaskStk[LCD_DISPLAY_TASK_STK_SIZE];
+OS_STK TouchscreenTaskStk[TOUCHSCREEN_TASK_STK_SIZE];
 
 // control setpoint
 double Xpos_set = 1520.0, Ypos_set = 1300.0; //TODO: make sure that these parameters match your touchscreen
@@ -49,6 +52,7 @@ static  void  AppStartTask(void *p_arg);
 static  void  AppTaskCreate(void);
 // TODO declare function prototypes
 static  void LCDDisplayTask(void *p_arg);
+static  void TouchscreenTask(void *p_arg);
 
 /*
 *********************************************************************************************************
@@ -111,6 +115,8 @@ static  void  AppStartTask (void *p_arg)
     setupServo(CH_Y); 
     // initialize LCD
     DispInit();
+    // initialize LED
+    BSP_Init();
     
     AppTaskCreate();                                                    /* Create additional user tasks                             */
 
@@ -128,7 +134,7 @@ static  void  AppStartTask (void *p_arg)
 
 static  void  AppTaskCreate (void)
 {
-    CPU_INT08U  err;
+    CPU_INT08U  lcd_err;
     OSTaskCreateExt(LCDDisplayTask,                                       /* Create the task for lcd display      */
                     (void *)0,
                     (OS_STK *)&LCDDisplayTaskStk[0],
@@ -138,13 +144,51 @@ static  void  AppTaskCreate (void)
                     LCD_DISPLAY_TASK_STK_SIZE,
                     (void *)0,
                     OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
-    OSTaskNameSet(LCD_DISPLAY_TASK_PRIO, (CPU_INT08U *)"LCD Task", &err);
+    OSTaskNameSet(LCD_DISPLAY_TASK_PRIO, (CPU_INT08U *)"LCD Task", &lcd_err);
+
+    CPU_INT08U  touch_err;
+    OSTaskCreateExt(TouchscreenTask,                                       /* Create the task for touchscreen     */
+                    (void *)0,
+                    (OS_STK *)&TouchscreenTaskStk[0],
+                    TOUCHSCREEN_TASK_PRIO,
+                    TOUCHSCREEN_TASK_PRIO,
+                    (OS_STK *)&TouchscreenTaskStk[TOUCHSCREEN_TASK_STK_SIZE-1],
+                    TOUCHSCREEN_TASK_STK_SIZE,
+                    (void *)0,
+                    OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
+    OSTaskNameSet(TOUCHSCREEN_TASK_PRIO, (CPU_INT08U *)"Touchscreen Task", &touch_err);
 }
 
+int milisecCounter;
+int secCounter;
+int minCounter;
 
 static  void  LCDDisplayTask (void *p_arg)
 {
-     DispStr(1,1,"Group 4 Session 3");
+    DispClrScr();
+    DispStr(1,0,"Group 4 Session 3");
+
+     if (milisecCounter == 1000){
+        milisecCounter = 0;
+        secCounter++;
+
+        char *time_str = (char*)malloc(16 * sizeof(char));
+        sprintf(time_str, "%02d:%02d.%03d", minCounter, secCounter, milisecCounter);
+        DispStr(3,0,time_str);
+
+    }
+    if (secCounter == 60){
+        secCounter = 0;
+        minCounter++;
+    }
+        
+    milisecCounter++;
+    
+}
+
+static void TouchscreenTask (void *p_arg)
+{
+
 }
 
 
