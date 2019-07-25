@@ -8,9 +8,11 @@
 #include "touch.h"
 #include "servo.h"
 #include <stdlib.h>
+#include <math.h>
 
 
-
+#define SPEED 0.08
+#define DEADLINE_COUNT 10
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,9 +67,11 @@ void initTimer3(){
 float readLowPass(int direction){
     int init = readADC();
     int data[4] = { init, init, init, init};
-    float a[5] = {1.00, 0.7821, 0.6800, 0.1827, 0.0301};
-    float b[5] = {0.1672, 0.6687, 1.0031, 0.6687, 0.1672};
-    float y[4] = {init,init,init,init};
+    //float a[5] = {1.00, 0.7821, 0.6800, 0.1827, 0.0301};
+     float a[2] = {0.1602, 0.1602};
+    //float b[5] = {0.1672, 0.6687, 1.0031, 0.6687, 0.1672};
+    float b[2] = {1.0, -0.6796};
+    float y[4] = {0,0,0,0};
     float x[5] = {init,init,init,init,init};
     
     int i = 0;
@@ -75,7 +79,7 @@ float readLowPass(int direction){
     int output;
     int bSide;
     int aSide = 0;
-    for (i = 0; i< 5; i++){
+    for (i = 0; i< 2; i++){
         //butter (4, 30/50)
         
         x[i] = readADC();
@@ -91,7 +95,7 @@ float readLowPass(int direction){
 
     float temp;
     float temp2;
-    for(i = 0; i < 4; i++){
+    for(i = 0; i < 1; i++){
         if (i == 0){
             temp = y[i];
             y[i] = bSide - aSide;
@@ -107,16 +111,30 @@ float readLowPass(int direction){
     
 }
 
+float readLowPass2(int direction){
+    float b[2] = {0.1602, 0.1602};
+    float a[2] = {1.0000, -0.6796};
+    
+    int value1= readADC();
+    int value2= readADC();
+    float y = (b[0] * value1);
+    
+    return (b[0] * value2) + (b[1] * value1) - (a[1] * y);;
+}
+
 double kp = 0.3;
 double ki = 0.1;
 double kd = 0.02;
 
 
-
-
-
 double setPointX;
 double setPointY;
+
+double centerX;
+double centerY;
+
+double radX;
+double radY;
 
 //unsigned long currentTime = 0, previousTime;
 double elapsedTime;
@@ -124,44 +142,53 @@ double error;
 double lastError;
 double cumError, rateError;
 
+double tick = 0.0;
 void setupPID(){
     // before COS wave
        // setPointX = 2500.0f + 350;            
        /// setPointY = 2270.0f+300;   
        // setPointY = 2270.0f+250;   
     // after COS wave
-         setPointX = 2755;
-         setPointY = 2290;
+    
+        centerX = 1117;
+        centerY = 1287; 
+
+        radX = 1;
+        radY = 1;
         
         cumError = 0.0f;
         rateError = 0.0f;
-
         
         error = 0.0f;
-        lastError =  300.0f;  // TODO: get actual last error
+        lastError =  300.0f;   // TODO: get actual last error
         elapsedTime = 0.05;    // TODO: get actual elapsed time
 }    
 
 int magic = 0;
 double computePID(double inp, uint8_t servoNum){
     
+    setPointX = centerX + (radX*cos(tick* SPEED));
+    setPointY = centerY + (radY*sin(tick* SPEED)); 
+    
+    //setPointX = 1105;
+    //setPointY = 1284;
+
     float threshold = 1600;
     
      if(servoNum == CH_X){
         error = setPointX - inp;   
-        kp = 0.25;
-        ki = 0.000001;
-        kd = 0.02;
-        magic = 0;
-        
+        //kp = 0.4;
+        //ki = 0.0;
+        //kd = 0.0;
+        kp = 0.400;
+        ki = 0.00;
+        kd = 0.000;
     }
         else if(servoNum == CH_Y){
         error = setPointY - inp; 
-        kp = 0.6;
-        ki = 0.1;
-        kd = 0.3;
-        
-         magic = 20;
+        kp = 0.45;
+        ki = 0.0;
+        kd = 0.000;  
        }
         
        
@@ -180,20 +207,23 @@ double computePID(double inp, uint8_t servoNum){
        
        double result = abs(out);
        
+      
        // duty trim
 
        
-       return result - magic;                                        //have function return the PID output
+       return result;                                        //have function return the PID output
 }
 
   int dutyX;
+  int dutyY;
 void __attribute__((interrupt)) _T3Interrupt (void) {
     
   dutyX = computePID(posX, CH_X);
-   int dutyY = computePID(posY, CH_Y);
-    //setDutyCycle(CH_X, dutyX);
-    setDutyCycle(CH_Y, dutyY);
+  dutyY = computePID(posY, CH_Y);
+    setDutyCycle(CH_X, dutyX);
+   setDutyCycle(CH_Y, dutyY);
     
+    tick+=0.1;
     IFS0bits.T3IF = 0; // Clear Timer3 Interrupt Flag
         
    
@@ -223,18 +253,18 @@ void main(){
         //ZERO = 45 NINETY = 75 ONEEIGHTY = 105
         
         setTouchMode(1);
-        posX = readLowPass(1);
+        posX = readLowPass2(1);
 		__delay_ms(10);  
         
         setTouchMode(0);
-        posY = readLowPass(0);
+        posY = readLowPass2(0);
         __delay_ms(10);
         
         if (printCount == 10){
             lcd_locate(0,3);
-            lcd_printf("%d", posX);
+            lcd_printf("%d  %d", posX, dutyX);
             lcd_locate(0,5);
-            lcd_printf("%d", posY);
+            lcd_printf("%d  %d", posY,dutyY);
             printCount = 0;
         }
         printCount++;
