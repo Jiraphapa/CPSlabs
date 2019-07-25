@@ -1,7 +1,6 @@
 #include <includes.h>
-#include <touch.c>
-#include <motor.c>
-
+#include <touch.h>
+#include <motor.h>
 #include <stdio.h>
 
 /*
@@ -14,7 +13,7 @@
 #define RT_FREQ 50
 
 //setpoint parameters
-#define SPEED 0.08  // tested up to .12!
+
 #define RADIUS 350
 #define CENTER_X 1520 //TODO: make sure that these parameters match your touchscreen
 #define CENTER_Y 1300 //TODO: make sure that these parameters match your touchscreen
@@ -25,6 +24,8 @@
 *********************************************************************************************************
 */
 
+
+OS_EVENT *ResourceMutex;
 OS_STK  AppStartTaskStk[APP_TASK_START_STK_SIZE];
 // TODO define task stacks
 OS_STK LCDDisplayTaskStk[LCD_DISPLAY_TASK_STK_SIZE];
@@ -41,6 +42,10 @@ CPU_INT16U Xpos, Ypos;
 CPU_INT16U Xposf, Yposf;
 
 CPU_INT08U select = X_DIM;
+CPU_FP32 tick = 0.0;
+
+
+
 
 
 /*
@@ -49,8 +54,8 @@ CPU_INT08U select = X_DIM;
 *********************************************************************************************************
 */
 
-static  void  AppStartTask(void *p_arg);
-static  void  AppTaskCreate(void);
+static  void AppStartTask(void *p_arg);
+static  void AppTaskCreate(void);
 // TODO declare function prototypes
 static  void LCDDisplayTask(void *p_arg);
 static  void TouchscreenTask(void *p_arg);
@@ -65,13 +70,17 @@ static  void PIDControlTask(void *p_arg);
 *********************************************************************************************************
 */
 
+
+
 CPU_INT16S  main (void)
 {
     CPU_INT08U  err;
+    INT8U mutexErr;
 
     BSP_IntDisAll();                                                    /* Disable all interrupts until we are ready to accept them */
     OSInit();                                                           /* Initialize "uC/OS-II, The Real-Time Kernel"              */
-
+    
+              
     OSTaskCreateExt(AppStartTask,                                       /* Create the start-up task for system initialization       */
                     (void *)0,
                     (OS_STK *)&AppStartTaskStk[0],
@@ -82,6 +91,7 @@ CPU_INT16S  main (void)
                     (void *)0,
                     OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
     OSTaskNameSet(APP_TASK_START_PRIO, (CPU_INT08U *)"Start Task", &err);
+    
 
     OSStart();                                                          /* Start multitasking (i.e. give control to uC/OS-II)       */
 	return (-1);                                                        /* Return an error - This line of code is unreachable       */
@@ -114,12 +124,16 @@ static  void  AppStartTask (void *p_arg)
     // initialize touchscreen and motors
     initADC();
     initTouchScreen();
-    setupServo(CH_X); 
-    setupServo(CH_Y); 
+   
+    setupPID();
     // initialize LCD
-    DispInit();
+  
+    DispClrScr();
+     OSTimeDlyHMSM(0, 0, 0,500);
     // initialize LED
-    BSP_Init();
+   
+    //init Timer
+   
     
     AppTaskCreate();                                                    /* Create additional user tasks                             */
 
@@ -137,6 +151,18 @@ static  void  AppStartTask (void *p_arg)
 
 static  void  AppTaskCreate (void)
 {
+    CPU_INT08U  pid_err;
+    /*  OSTaskCreateExt(PIDControlTask,                                        Create the task for PID control     
+                    (void *)0,
+                    (OS_STK *)&PIDControlTaskStk[0],
+                    PID_CONTROL_TASK_PRIO,
+                    PID_CONTROL_TASK_PRIO,
+                    (OS_STK *)&PIDControlTaskStk[PID_CONTROL_TASK_STK_SIZE-1],
+                    PID_CONTROL_TASK_STK_SIZE,
+                    (void *)0,
+                    OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
+    OSTaskNameSet(PID_CONTROL_TASK_PRIO, (CPU_INT08U *)"PID Task", &pid_err);*/
+    
     CPU_INT08U  lcd_err;
     OSTaskCreateExt(LCDDisplayTask,                                       /* Create the task for lcd display      */
                     (void *)0,
@@ -149,8 +175,8 @@ static  void  AppTaskCreate (void)
                     OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
     OSTaskNameSet(LCD_DISPLAY_TASK_PRIO, (CPU_INT08U *)"LCD Task", &lcd_err);
 
-    CPU_INT08U  touch_err;
-    OSTaskCreateExt(TouchscreenTask,                                       /* Create the task for touchscreen     */
+      CPU_INT08U  touch_err;
+    OSTaskCreateExt(TouchscreenTask,                                 
                     (void *)0,
                     (OS_STK *)&TouchscreenTaskStk[0],
                     TOUCHSCREEN_TASK_PRIO,
@@ -160,83 +186,119 @@ static  void  AppTaskCreate (void)
                     (void *)0,
                     OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
     OSTaskNameSet(TOUCHSCREEN_TASK_PRIO, (CPU_INT08U *)"Touchscreen Task", &touch_err);
+    
+    CPU_INT08U timer_err;
+    
 
-    CPU_INT08U  pid_err;
-    OSTaskCreateExt(PIDControlTask,                                       /* Create the task for PID control     */
-                    (void *)0,
-                    (OS_STK *)&PIDControlTaskStk[0],
-                    PID_CONTROL_TASK_PRIO,
-                    PID_CONTROL_TASK_PRIO,
-                    (OS_STK *)&PIDControlTaskStk[PID_CONTROL_TASK_STK_SIZE-1],
-                    PID_CONTROL_TASK_STK_SIZE,
-                    (void *)0,
-                    OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR);
-    OSTaskNameSet(PID_CONTROL_TASK_PRIO, (CPU_INT08U *)"PID Task", &pid_err);
+    
 }
 
-CPU_INT16U milisecCounter;
-CPU_INT16U secCounter;
-CPU_INT16U minCounter;
 
-CPU_INT16U namePrintCounter = 0;
+
+
+void openLED(int num){
+    int i = 0;
+    for (i=1; i <  6; i++){
+        if(num != i)
+            LED_Off(i);
+        else
+            LED_On(i);
+    }
+}
+
+
+int time = 0;
+int led = 1;
 
 static  void  LCDDisplayTask (void *p_arg)
 {
-    // 1. (@Ploy) display group number on the top line of the LCD.
-    DispClrScr();
-    if(namePrintCounter == 0){
-        DispStr(1,0,"Group 4 Session 3");
-        namePrintCounter++;
-    }
-    // 2. (@Ploy) display the seconds since last reset on the second line of the LCD.
-     if (milisecCounter == 1000){
-        milisecCounter = 0;
-        secCounter++;
-
-        char *time_str = (char*)malloc(16 * sizeof(char));
-        sprintf(time_str, "%02d:%02d.%03d", minCounter, secCounter, milisecCounter);
-        DispStr(3,0,time_str);
-
-    }
-    if (secCounter == 60){
-        secCounter = 0;
-        minCounter++;
-    }
+     
+    
+    DispStr(0,0,"Group 4 Session 3");
+    OSTimeDlyHMSM(0,0,0,200);
+    while(1)
+    {
         
-    milisecCounter++;
-    // 3.  (@Ploy) display the ball’s X and Y position values to the LCD.
-    // 4.  (@Ploy) Update the LED state to rotate from left to right.
+        openLED(led % 6);
+        
+        
+        char num[21];
+        
+        
+        sprintf(num, "t: %d,x: %d,y: %d", time, Xposf, Yposf);
+        DispStr(2,0, num);
+        
+        
+        
+        OSTimeDlyHMSM(0,0,1,0);
+        
+        
+        time++;
+        
+        led++;
+
+    }
     
 }
 
 static void TouchscreenTask (void *p_arg)
 {
-    if(select == X_DIM)
-    {
-        // TODO(@James) : (Refactor) Move readFiltered, readRaw, ...  functions to touch.h
-        // 1. Read the touchscreen for the selected dimension.
-        // Xpos = 
-        // 2. Filter the touchscreen readings using a low pass filter.
-        // Xposf = 
-        // 3. Change the selected dimension.
-         select = Y_DIM;
+    INT8U err;
+    
+    p_arg = p_arg;
+    while (1){
+
+        if(select == X_DIM)
+        {
+
+            // 1. Read the touchscreen for the selected dimension.
+            Xposf = readADC();
+            // Xpos = 
+            // 2. Filter the touchscreen readings using a low pass filter.
+            // Xposf = 
+            // 3. Change the selected dimension.
+            setTouchMode(Y_DIM);
+            setDirectionADC(Y_DIM);
+            select = Y_DIM;
+        
+        }
+        else
+        {
+            Yposf = readADC();
+            // 1. Read the touchscreen for the selected dimension.
+            // Ypos = 
+            // 2. Filter the touchscreen readings using a low pass filter.
+            // Yposf = 
+            // 3. Change the selected dimension.
+            setTouchMode(X_DIM);
+            setDirectionADC(X_DIM);
+            select = X_DIM;
+         
+        }
     }
-    else
-    {
-        // TODO(@James) : (Refactor) Move readFiltered, readRaw, ...  functions to touch.h
-        // 1. Read the touchscreen for the selected dimension.
-        // Ypos = 
-        // 2. Filter the touchscreen readings using a low pass filter.
-        // Yposf = 
-        // 3. Change the selected dimension.
-        select = X_DIM;
-    }
+    
     
 }
 
+
+
 static void PIDControlTask(void *p_arg)
 {
-       // TODO(@James)  : add PID control task here
+    //int dutyX = computePID(Xposf, CH_X, tick);
+    //int dutyY = computePID(Yposf, CH_Y, tick);
+    INT8U err;
+    
+    p_arg = p_arg;
+  
+    
+    
+    int dutyX = 2100 / 20;
+   
+    tick+=0.1;
+    
+    
+    
+
        // ***Notes*** review predefined macro and TODOs in other file as well 
 } 
 
